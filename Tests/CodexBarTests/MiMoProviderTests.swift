@@ -280,6 +280,44 @@ struct MiMoProviderTests {
     }
 
     @Test
+    func `mimo manual mode does not report available from cached browser session`() async {
+        CookieHeaderCache.store(
+            provider: .mimo,
+            cookieHeader: "api-platform_serviceToken=svc-token; userId=123",
+            sourceLabel: "cached")
+        defer { CookieHeaderCache.clear(provider: .mimo) }
+
+        let strategy = MiMoWebFetchStrategy()
+        let context = self.makeContext(settings: ProviderSettingsSnapshot.make(
+            mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
+                cookieSource: .manual,
+                manualCookieHeader: "Cookie: userId=123")))
+
+        let available = await strategy.isAvailable(context)
+
+        #expect(available == false)
+    }
+
+    @Test
+    func `mimo manual mode rejects invalid header instead of falling back to cached session`() async {
+        CookieHeaderCache.store(
+            provider: .mimo,
+            cookieHeader: "api-platform_serviceToken=svc-token; userId=123",
+            sourceLabel: "cached")
+        defer { CookieHeaderCache.clear(provider: .mimo) }
+
+        let strategy = MiMoWebFetchStrategy()
+        let context = self.makeContext(settings: ProviderSettingsSnapshot.make(
+            mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
+                cookieSource: .manual,
+                manualCookieHeader: "Cookie: userId=123")))
+
+        await #expect(throws: MiMoSettingsError.invalidCookie) {
+            _ = try await strategy.fetch(context)
+        }
+    }
+
+    @Test
     func `mimo web strategy retries imported sessions after decode failure`() async throws {
         let registered = URLProtocol.registerClass(MiMoStubURLProtocol.self)
         defer {

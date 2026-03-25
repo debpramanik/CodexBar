@@ -61,6 +61,9 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.mimo?.cookieSource != .off else { return false }
+        if context.settings?.mimo?.cookieSource == .manual {
+            return Self.resolveManualCookieHeader(context: context) != nil
+        }
         if Self.resolveManualCookieHeader(context: context) != nil {
             return true
         }
@@ -80,6 +83,15 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
             throw MiMoSettingsError.missingCookie
+        }
+        if context.settings?.mimo?.cookieSource == .manual {
+            guard let manualCookie = Self.resolveManualCookieHeader(context: context) else {
+                throw MiMoSettingsError.invalidCookie
+            }
+            let snapshot = try await MiMoUsageFetcher.fetchUsage(
+                cookieHeader: manualCookie,
+                environment: context.env)
+            return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
         }
         if let manualCookie = Self.resolveManualCookieHeader(context: context) {
             let snapshot = try await MiMoUsageFetcher.fetchUsage(
