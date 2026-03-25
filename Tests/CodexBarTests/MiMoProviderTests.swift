@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import CodexBar
 @testable import CodexBarCore
+#if os(macOS)
+import SweetCookieKit
+#endif
 
 @Suite(.serialized)
 struct MiMoProviderTests {
@@ -340,6 +343,53 @@ struct MiMoProviderTests {
         #expect(result.usage.loginMethod(for: .mimo) == "Balance: $25.51")
         #expect(CookieHeaderCache.load(provider: .mimo)?.sourceLabel == "Active Chrome")
     }
+
+    #if os(macOS)
+    @Test
+    func `mimo importer merges profile stores before validating auth cookies`() {
+        let profile = BrowserProfile(id: "Default", name: "Default")
+        let primaryStore = BrowserCookieStore(
+            browser: .chrome,
+            profile: profile,
+            kind: .primary,
+            label: "Chrome Default",
+            databaseURL: nil)
+        let networkStore = BrowserCookieStore(
+            browser: .chrome,
+            profile: profile,
+            kind: .network,
+            label: "Chrome Default (Network)",
+            databaseURL: nil)
+        let expires = Date(timeIntervalSince1970: 1_900_000_000)
+
+        let sessions = MiMoCookieImporter.sessionInfos(from: [
+            BrowserCookieStoreRecords(store: primaryStore, records: [
+                BrowserCookieRecord(
+                    domain: "platform.xiaomimimo.com",
+                    name: "userId",
+                    path: "/",
+                    value: "123",
+                    expires: expires,
+                    isSecure: true,
+                    isHTTPOnly: false),
+            ]),
+            BrowserCookieStoreRecords(store: networkStore, records: [
+                BrowserCookieRecord(
+                    domain: "platform.xiaomimimo.com",
+                    name: "api-platform_serviceToken",
+                    path: "/",
+                    value: "token",
+                    expires: expires,
+                    isSecure: true,
+                    isHTTPOnly: true),
+            ]),
+        ])
+
+        #expect(sessions.count == 1)
+        #expect(sessions.first?.sourceLabel == "Chrome Default")
+        #expect(sessions.first?.cookieHeader == "api-platform_serviceToken=token; userId=123")
+    }
+    #endif
 
     private static func makeResponse(
         url: URL,
