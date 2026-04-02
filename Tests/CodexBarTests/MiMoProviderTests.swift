@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 @testable import CodexBarCore
@@ -237,7 +238,7 @@ struct MiMoProviderTests {
     @Test
     @MainActor
     func `provider detail plan row formats mimo as balance`() {
-        let row = ProviderDetailView.planRow(provider: .mimo, planText: "Balance: $25.51")
+        let row = ProviderDetailView<Text>.planRow(provider: .mimo, planText: "Balance: $25.51")
 
         #expect(row?.label == "Balance")
         #expect(row?.value == "$25.51")
