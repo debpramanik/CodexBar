@@ -193,6 +193,13 @@ struct TokenAccountCLIContext {
                 abacus: ProviderSettingsSnapshot.AbacusProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .mimo:
+            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+            return self.makeSnapshot(
+                mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
             return nil
         }
@@ -215,7 +222,8 @@ struct TokenAccountCLIContext {
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
         perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil,
-        abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil) -> ProviderSettingsSnapshot
+        abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
+        mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -234,7 +242,8 @@ struct TokenAccountCLIContext {
             ollama: ollama,
             jetbrains: jetbrains,
             perplexity: perplexity,
-            abacus: abacus)
+            abacus: abacus,
+            mimo: mimo)
     }
 
     private func makeCodexSettingsSnapshot(account: ProviderTokenAccount?) ->
