@@ -29,6 +29,20 @@ public enum KimiCookieImporter {
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         var sessions: [SessionInfo] = []
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let browserOSSessions = try self.importSessionsFromBrowserOS(logger: logger)
+                sessions.append(contentsOf: browserOSSessions)
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                self.emit(
+                    "BrowserOS MCP cookie import failed: \(error.localizedDescription)",
+                    logger: logger)
+            }
+        }
+
         let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in candidates {
             do {
@@ -58,6 +72,25 @@ public enum KimiCookieImporter {
             matching: query,
             in: browserSource,
             logger: log)
+        return self.sessions(from: sources, query: query, log: log)
+    }
+
+    private static func importSessionsFromBrowserOS(
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+        let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
+        let sources = try Self.cookieClient.browserosRecords(
+            matching: query,
+            logger: log)
+        return self.sessions(from: sources, query: query, log: log)
+    }
+
+    private static func sessions(
+        from sources: [BrowserCookieStoreRecords],
+        query: BrowserCookieQuery,
+        log: (String) -> Void) -> [SessionInfo]
+    {
 
         var sessions: [SessionInfo] = []
         let grouped = Dictionary(grouping: sources, by: { $0.store.profile.id })

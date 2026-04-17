@@ -3,9 +3,8 @@ import CompilerPluginSupport
 import Foundation
 import PackageDescription
 
-let sweetCookieKitPath = "../SweetCookieKit"
-let useLocalSweetCookieKit =
-    ProcessInfo.processInfo.environment["CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT"] == "1"
+let sweetCookieKitPath = "SweetCookieKit"
+let useLocalSweetCookieKit = true
 let sweetCookieKitDependency: Package.Dependency =
     useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
     ? .package(path: sweetCookieKitPath)

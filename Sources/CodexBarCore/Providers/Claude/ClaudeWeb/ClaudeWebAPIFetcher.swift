@@ -343,14 +343,34 @@ public enum ClaudeWebAPIFetcher {
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
         let log: (String) -> Void = { msg in logger?(msg) }
-
         let cookieDomains = ["claude.ai"]
+        let query = BrowserCookieQuery(domains: cookieDomains)
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let sources = try Self.cookieClient.browserosRecords(matching: query, logger: log)
+                for source in sources {
+                    if let sessionKey = findSessionKey(in: source.records.map { record in
+                        (name: record.name, value: record.value)
+                    }) {
+                        log("Found sessionKey from BrowserOS MCP")
+                        return SessionKeyInfo(
+                            key: sessionKey,
+                            sourceLabel: source.label,
+                            cookieCount: source.records.count)
+                    }
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
 
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
         let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in installedBrowsers {
             do {
-                let query = BrowserCookieQuery(domains: cookieDomains)
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,

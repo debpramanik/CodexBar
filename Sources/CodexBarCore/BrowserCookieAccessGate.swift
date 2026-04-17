@@ -81,6 +81,18 @@ public enum BrowserCookieAccessGate {
         }
     }
 
+    /// BrowserOS uses MCP instead of Keychain - always allow if server is reachable
+    public static func shouldAttemptBrowserOS() -> Bool {
+        guard !KeychainAccessGate.isDisabled else { return false }
+        let available = BrowserOSCookieProvider.isAvailable()
+        if available {
+            log.debug("BrowserOS MCP cookie access available")
+        } else {
+            log.debug("BrowserOS MCP not reachable")
+        }
+        return available
+    }
+
     private static func chromiumKeychainRequiresInteraction() -> Bool {
         for label in self.safeStorageLabels {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
@@ -113,6 +125,14 @@ public enum BrowserCookieAccessGate {
 }
 
 extension BrowserCookieClient {
+    public func browserosRecords(
+        matching query: BrowserCookieQuery,
+        logger: ((String) -> Void)? = nil) throws -> [BrowserCookieStoreRecords]
+    {
+        guard BrowserCookieAccessGate.shouldAttemptBrowserOS() else { return [] }
+        return try BrowserOSCookieProvider.fetchRecords(for: query, logger: logger)
+    }
+
     public func codexBarRecords(
         matching query: BrowserCookieQuery,
         in browser: Browser,

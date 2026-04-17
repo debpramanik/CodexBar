@@ -153,9 +153,14 @@ public struct OpenAIDashboardBrowserCookieImporter {
             }
         }
 
-        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
-        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
-        for browserSource in installedBrowsers {
+        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts.
+        // If BrowserOS MCP is available, try it first (no keychain prompts, user's explicit choice).
+        var browserCandidates = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            browserCandidates.insert(.browseros, at: 0)
+            log("BrowserOS MCP available; will try before browser cookies.")
+        }
+        for browserSource in browserCandidates {
             if let match = await self.trySource(
                 browserSource,
                 context: context,
@@ -376,6 +381,53 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
+    private func tryBrowserOS(
+        context: ImportContext,
+        log: @escaping (String) -> Void,
+        diagnostics: inout ImportDiagnostics) async -> ImportResult?
+    {
+        do {
+            let query = BrowserCookieQuery(domains: Self.cookieDomains)
+            let sources = try Self.cookieClient.browserosRecords(
+                matching: query,
+                logger: log)
+            guard !sources.isEmpty else {
+                log("BrowserOS MCP returned 0 matching records.")
+                return nil
+            }
+            for source in sources {
+                let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                guard !cookies.isEmpty else {
+                    log("BrowserOS MCP produced 0 HTTPCookies.")
+                    continue
+                }
+
+                diagnostics.foundAnyCookies = true
+                log("Loaded \(cookies.count) cookies from \(source.label) (\(self.cookieSummary(cookies)))")
+                let candidate = Candidate(label: source.label, cookies: cookies)
+                if let match = await self.applyCandidate(
+                    candidate,
+                    context: context,
+                    log: log,
+                    diagnostics: &diagnostics)
+                {
+                    return match
+                }
+            }
+            return nil
+        } catch let error as BrowserCookieError {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            if let hint = error.accessDeniedHint {
+                diagnostics.accessDeniedHints.append(hint)
+            }
+            log("BrowserOS MCP cookie load failed: \(error.localizedDescription)")
+            return nil
+        } catch {
+            log("BrowserOS MCP cookie load failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     private func trySource(
         _ source: Browser,
         context: ImportContext,
@@ -383,6 +435,11 @@ public struct OpenAIDashboardBrowserCookieImporter {
         diagnostics: inout ImportDiagnostics) async -> ImportResult?
     {
         switch source {
+        case .browseros:
+            await self.tryBrowserOS(
+                context: context,
+                log: log,
+                diagnostics: &diagnostics)
         case .safari:
             await self.trySafari(
                 context: context,

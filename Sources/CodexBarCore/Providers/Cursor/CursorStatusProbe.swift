@@ -115,29 +115,7 @@ public enum CursorCookieImporter {
                 matching: query,
                 in: browser,
                 logger: log)
-            var sessions: [SessionInfo] = []
-            for source in sources where !source.records.isEmpty {
-                let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                let hasNamedSession = httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) })
-                if hasNamedSession {
-                    log("Found \(httpCookies.count) Cursor cookies in \(source.label)")
-                    if requireKnownSessionName {
-                        sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
-                    }
-                    continue
-                }
-                if !requireKnownSessionName, !httpCookies.isEmpty {
-                    log(
-                        "Found \(httpCookies.count) Cursor domain cookies in \(source.label) "
-                            + "(no known session name); will validate via API")
-                    sessions.append(SessionInfo(
-                        cookies: httpCookies,
-                        sourceLabel: "\(source.label) (domain cookies)"))
-                    continue
-                }
-                log("\(source.label) cookies found, but no Cursor session cookie present")
-            }
-            return sessions
+            return self.sessions(from: sources, query: query, log: log, requireKnownSessionName: requireKnownSessionName)
         } catch {
             BrowserCookieAccessGate.recordIfNeeded(error)
             log("\(browser.displayName) cookie import failed: \(error.localizedDescription)")
@@ -145,11 +123,67 @@ public enum CursorCookieImporter {
         return []
     }
 
+    private static func importSessionsFromBrowserOS(
+        logger: ((String) -> Void)?) -> [SessionInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[cursor-cookie] \(msg)") }
+        do {
+            let query = BrowserCookieQuery(domains: Self.cookieDomains)
+            let sources = try Self.cookieClient.browserosRecords(
+                matching: query,
+                logger: log)
+            // BrowserOS sessions always require known session name for reliability.
+            return self.sessions(from: sources, query: query, log: log, requireKnownSessionName: true)
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+        }
+        return []
+    }
+
+    private static func sessions(
+        from sources: [BrowserCookieStoreRecords],
+        query: BrowserCookieQuery,
+        log: (String) -> Void,
+        requireKnownSessionName: Bool) -> [SessionInfo]
+    {
+        var sessions: [SessionInfo] = []
+        for source in sources where !source.records.isEmpty {
+            let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+            let hasNamedSession = httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) })
+            if hasNamedSession {
+                log("Found \(httpCookies.count) Cursor cookies in \(source.label)")
+                if requireKnownSessionName {
+                    sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
+                }
+                continue
+            }
+            if !requireKnownSessionName, !httpCookies.isEmpty {
+                log(
+                    "Found \(httpCookies.count) Cursor domain cookies in \(source.label) "
+                        + "(no known session name); will validate via API")
+                sessions.append(SessionInfo(
+                    cookies: httpCookies,
+                    sourceLabel: "\(source.label) (domain cookies)"))
+                continue
+            }
+            log("\(source.label) cookies found, but no Cursor session cookie present")
+        }
+        return sessions
+    }
+
     /// Attempts to import Cursor cookies using the standard browser import order.
     public static func importSession(
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            if let session = Self.importSessionsFromBrowserOS(logger: logger).first {
+                return session
+            }
+        }
+
         let installedBrowsers = cursorCookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in installedBrowsers {
             if let session = Self.importSessionsIfPresent(
