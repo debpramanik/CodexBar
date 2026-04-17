@@ -54,6 +54,17 @@ public enum FactoryCookieImporter {
         let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
         var sessions: [SessionInfo] = []
 
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let browserOSSessions = try self.importSessionsFromBrowserOS(logger: logger)
+                sessions.append(contentsOf: browserOSSessions)
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
+
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
         let installedBrowsers = factoryCookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in installedBrowsers {
@@ -83,6 +94,26 @@ public enum FactoryCookieImporter {
             matching: query,
             in: browserSource,
             logger: log)
+        return self.sessions(from: sources, query: query, log: log)
+    }
+
+    private static func importSessionsFromBrowserOS(
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
+        let cookieDomains = ["factory.ai", "app.factory.ai", "auth.factory.ai"]
+        let query = BrowserCookieQuery(domains: cookieDomains)
+        let sources = try Self.cookieClient.browserosRecords(
+            matching: query,
+            logger: log)
+        return self.sessions(from: sources, query: query, log: log)
+    }
+
+    private static func sessions(
+        from sources: [BrowserCookieStoreRecords],
+        query: BrowserCookieQuery,
+        log: (String) -> Void) -> [SessionInfo]
+    {
 
         var sessions: [SessionInfo] = []
         for source in sources where !source.records.isEmpty {

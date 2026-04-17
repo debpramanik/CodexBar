@@ -71,6 +71,10 @@ public final class BrowserDetection: Sendable {
             return true
         }
 
+        if browser == .browseros {
+            return BrowserOSCookieProvider.isAvailable()
+        }
+
         // For browsers that typically require keychain-backed decryption, ensure an actual cookie store exists.
         if self.requiresProfileValidation(browser) {
             return self.hasUsableCookieStore(browser)
@@ -170,6 +174,10 @@ public final class BrowserDetection: Sendable {
             return "\(homeDirectory)/Library/Cookies/Cookies.binarycookies"
         }
 
+        if browser == .browseros {
+            return nil // BrowserOS uses MCP, not a file path
+        }
+
         if let relativePath = browser.chromiumProfileRelativePath {
             return "\(homeDirectory)/Library/Application Support/\(relativePath)"
         }
@@ -184,6 +192,10 @@ public final class BrowserDetection: Sendable {
     private func requiresProfileValidation(_ browser: Browser) -> Bool {
         // Chromium-based browsers should have Default/ or Profile*/ subdirectories
         if browser == .safari {
+            return false
+        }
+
+        if browser == .browseros {
             return false
         }
 

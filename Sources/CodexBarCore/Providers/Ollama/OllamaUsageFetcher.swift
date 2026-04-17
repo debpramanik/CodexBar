@@ -82,6 +82,24 @@ public enum OllamaCookieImporter {
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         let log: (String) -> Void = { msg in logger?("[ollama-cookie] \(msg)") }
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let query = BrowserCookieQuery(domains: self.cookieDomains)
+                let sources = try Self.cookieClient.browserosRecords(matching: query, logger: log)
+                for source in sources where !source.records.isEmpty {
+                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    guard !cookies.isEmpty else { continue }
+                    log("Found \(cookies.count) Ollama cookies from BrowserOS MCP")
+                    return [SessionInfo(cookies: cookies, sourceLabel: source.label)]
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
+
         let preferredSources = preferredBrowsers.isEmpty
             ? ollamaCookieImportOrder.cookieImportCandidates(using: browserDetection)
             : preferredBrowsers.cookieImportCandidates(using: browserDetection)

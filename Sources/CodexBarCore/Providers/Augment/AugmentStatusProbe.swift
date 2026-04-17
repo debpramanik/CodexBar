@@ -62,11 +62,29 @@ public enum AugmentCookieImporter {
     /// Attempts to import Augment cookies using the standard browser import order.
     public static func importSession(logger: ((String) -> Void)? = nil) throws -> SessionInfo {
         let log: (String) -> Void = { msg in logger?("[augment-cookie] \(msg)") }
-
         let cookieDomains = ["augmentcode.com", "app.augmentcode.com"]
+        let query = BrowserCookieQuery(domains: cookieDomains)
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let sources = try Self.cookieClient.browserosRecords(matching: query, logger: log)
+                for source in sources where !source.records.isEmpty {
+                    let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    let matchingCookies = httpCookies.filter { Self.sessionCookieNames.contains($0.name) }
+                    if !matchingCookies.isEmpty {
+                        log("Found Augment session cookies from BrowserOS MCP")
+                        return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                    }
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
+
         for browserSource in augmentCookieImportOrder {
             do {
-                let query = BrowserCookieQuery(domains: cookieDomains)
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,

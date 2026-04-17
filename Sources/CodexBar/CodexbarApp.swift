@@ -41,6 +41,13 @@ struct CodexBarApp: App {
         KeychainAccessGate.isDisabled = UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
         KeychainPromptCoordinator.install()
 
+        // Configure BrowserOS MCP endpoint from user defaults
+        if let storedEndpoint = UserDefaults.standard.string(forKey: "browserOSEndpoint"),
+           !storedEndpoint.isEmpty
+        {
+            BrowserOSCookieProvider.endpoint = storedEndpoint
+        }
+
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()

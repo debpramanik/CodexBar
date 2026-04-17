@@ -30,13 +30,38 @@ public enum OpenCodeCookieImporter {
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
         let log: (String) -> Void = { msg in logger?("[opencode-cookie] \(msg)") }
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let sources = try Self.cookieClient.browserosRecords(matching: query, logger: log)
+                for source in sources where !source.records.isEmpty {
+                    let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    if !httpCookies.isEmpty {
+                        let hasAuthCookie = httpCookies.contains { cookie in
+                            cookie.name == "auth" || cookie.name == "__Host-auth"
+                        }
+                        if !hasAuthCookie {
+                            log("Skipping BrowserOS MCP cookies: missing auth cookie")
+                        } else {
+                            log("Found \(httpCookies.count) OpenCode cookies from BrowserOS MCP")
+                            return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                        }
+                    }
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
+
         let installedBrowsers = preferredBrowsers.isEmpty
             ? opencodeCookieImportOrder.cookieImportCandidates(using: browserDetection)
             : preferredBrowsers.cookieImportCandidates(using: browserDetection)
 
         for browserSource in installedBrowsers {
             do {
-                let query = BrowserCookieQuery(domains: self.cookieDomains)
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,

@@ -6,6 +6,7 @@ import SwiftUI
 struct GeneralPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @State private var browserOSConnectionState: BrowserOSConnectionState = .unknown
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -101,6 +102,57 @@ struct GeneralPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 12) {
+                    Text("BrowserOS")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        PreferenceToggleRow(
+                            title: "Enable BrowserOS MCP",
+                            subtitle: "Use BrowserOS MCP server for cookie fetching instead of browser keychain.",
+                            binding: self.$settings.browserOSEnabled)
+
+                        if self.settings.browserOSEnabled {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text("MCP URL")
+                                        .font(.body)
+                                    TextField("", text: self.$settings.browserOSEndpoint)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.footnote)
+                                        .monospaced()
+                                }
+
+                                HStack(alignment: .center, spacing: 10) {
+                                    Button("Test Connection") {
+                                        Task { await self.testBrowserOSConnection() }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+
+                                    if self.browserOSConnectionState == .testing {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        self.browserOSConnectionState.icon
+                                    }
+
+                                    Spacer()
+                                }
+
+                                Text("URL of your BrowserOS MCP server for cookie fetching.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                SettingsSection(contentSpacing: 12) {
                     HStack {
                         Spacer()
                         Button("Quit CodexBar") { NSApp.terminate(nil) }
@@ -161,5 +213,38 @@ struct GeneralPane: View {
         return Text("\(name): no data yet")
             .font(.footnote)
             .foregroundStyle(.tertiary)
+    }
+
+    private func testBrowserOSConnection() async {
+        self.browserOSConnectionState = .testing
+        let available = await Task.detached {
+            BrowserOSCookieProvider.isAvailable()
+        }.value
+        await MainActor.run {
+            self.browserOSConnectionState = available ? .connected : .failed
+        }
+    }
+}
+
+enum BrowserOSConnectionState {
+    case unknown
+    case testing
+    case connected
+    case failed
+
+    @ViewBuilder
+    var icon: some View {
+        switch self {
+        case .unknown:
+            EmptyView()
+        case .testing:
+            EmptyView()
+        case .connected:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
+        }
     }
 }

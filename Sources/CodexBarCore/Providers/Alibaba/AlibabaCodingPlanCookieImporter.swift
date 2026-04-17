@@ -75,13 +75,31 @@ public enum AlibabaCodingPlanCookieImporter {
         let log: (String) -> Void = { msg in logger?("[alibaba-cookie] \(msg)") }
         var accessDeniedHints: [String] = []
         var failureDetails: [String] = []
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let sources = try Self.cookieClient.browserosRecords(matching: query, logger: log)
+                for source in sources where !source.records.isEmpty {
+                    let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    if self.isAuthenticatedSession(cookies: httpCookies) {
+                        log("Found \(httpCookies.count) Alibaba cookies from BrowserOS MCP")
+                        return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                    }
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
+
         let installedBrowsers = self.cookieImportCandidates(browserDetection: browserDetection)
         log("Cookie import candidates: \(installedBrowsers.map(\.displayName).joined(separator: ", "))")
 
         for browserSource in installedBrowsers {
             do {
                 log("Checking \(browserSource.displayName)")
-                let query = BrowserCookieQuery(domains: self.cookieDomains)
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,

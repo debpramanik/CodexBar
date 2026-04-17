@@ -54,8 +54,21 @@ public enum PerplexityCookieImporter {
         }
 
         var sessions: [SessionInfo] = []
-        let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
-        for browserSource in candidates {
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let browserOSSessions = try self.importSessionsFromBrowserOS(logger: logger)
+                sessions.append(contentsOf: browserOSSessions)
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                self.emit("BrowserOS MCP cookie import failed: \(error.localizedDescription)", logger: logger)
+            }
+        }
+
+        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
+        for browserSource in installedBrowsers {
             do {
                 let perSource = try self.importSessions(from: browserSource, logger: logger)
                 sessions.append(contentsOf: perSource)
@@ -84,6 +97,25 @@ public enum PerplexityCookieImporter {
             matching: query,
             in: browserSource,
             logger: log)
+        return self.sessions(from: sources, query: query, log: log)
+    }
+
+    private static func importSessionsFromBrowserOS(
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+        let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
+        let sources = try Self.cookieClient.browserosRecords(
+            matching: query,
+            logger: log)
+        return self.sessions(from: sources, query: query, log: log)
+    }
+
+    private static func sessions(
+        from sources: [BrowserCookieStoreRecords],
+        query: BrowserCookieQuery,
+        log: (String) -> Void) -> [SessionInfo]
+    {
 
         var sessions: [SessionInfo] = []
         let grouped = Dictionary(grouping: sources, by: { $0.store.profile.id })

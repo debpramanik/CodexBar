@@ -60,11 +60,30 @@ public enum AmpCookieImporter {
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
         let log: (String) -> Void = { msg in logger?("[amp-cookie] \(msg)") }
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let sources = try Self.cookieClient.browserosRecords(matching: query, logger: log)
+                for source in sources where !source.records.isEmpty {
+                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    guard !cookies.isEmpty else { continue }
+                    let sessionCookies = cookies.filter { Self.sessionCookieNames.contains($0.name) }
+                    if !sessionCookies.isEmpty {
+                        log("Found Amp session cookie from BrowserOS MCP")
+                        return SessionInfo(cookies: sessionCookies, sourceLabel: source.label)
+                    }
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("BrowserOS MCP cookie import failed: \(error.localizedDescription)")
+            }
+        }
 
         let installed = ampCookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in installed {
             do {
-                let query = BrowserCookieQuery(domains: self.cookieDomains)
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
