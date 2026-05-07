@@ -888,7 +888,7 @@ extension StatusMenuTests {
             settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
         }
         controller.handleProviderConfigChange(reason: "test")
-        #expect(controller.statusItems[.claude]?.isVisible == false)
+        #expect(controller.statusItems[.claude] == nil)
     }
 
     @Test

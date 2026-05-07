@@ -2,7 +2,6 @@ import AppKit
 import CodexBarCore
 import Observation
 import QuartzCore
-import SwiftUI
 
 // MARK: - Status item controller (AppKit-hosted icons, SwiftUI popovers)
 
@@ -531,8 +530,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let mergeIcons = self.shouldMergeIcons
         if mergeIcons {
             self.statusItem.isVisible = anyEnabled || force
-            for item in self.statusItems.values {
-                item.isVisible = false
+            for provider in Array(self.statusItems.keys) {
+                self.removeProviderStatusItem(for: provider)
             }
             self.attachMenus()
         } else {
@@ -544,8 +543,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 if shouldBeVisible {
                     let item = self.lazyStatusItem(for: provider)
                     item.isVisible = true
-                } else if let item = self.statusItems[provider] {
-                    item.isVisible = false
+                } else {
+                    self.removeProviderStatusItem(for: provider)
                 }
             }
             self.attachMenus(fallback: fallback)
@@ -610,10 +609,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                     }
                 }
             } else if let item = self.statusItems[provider] {
-                // Item exists but is no longer needed - clear its menu
-                if item.menu != nil {
-                    item.menu = nil
-                }
+                item.menu = nil
             }
         }
     }
@@ -625,14 +621,29 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let ordered = self.settings.orderedProviders()
         let desired = Set(ordered)
         for provider in Array(self.statusItems.keys) where !desired.contains(provider) {
-            if let item = self.statusItems.removeValue(forKey: provider) {
-                self.statusBar.removeStatusItem(item)
-            }
+            self.removeProviderStatusItem(for: provider)
         }
 
-        for provider in ordered {
+        guard !self.shouldMergeIcons else { return }
+        let fallback = self.fallbackProvider
+        let force = self.store.debugForceAnimation
+        for provider in ordered where self.isEnabled(provider) || fallback == provider || force {
             _ = self.lazyStatusItem(for: provider)
         }
+    }
+
+    private func removeProviderStatusItem(for provider: UsageProvider) {
+        if let menu = self.providerMenus.removeValue(forKey: provider) {
+            let menuID = ObjectIdentifier(menu)
+            self.menuProviders.removeValue(forKey: menuID)
+            self.menuVersions.removeValue(forKey: menuID)
+            self.openMenus.removeValue(forKey: menuID)
+            self.menuRefreshTasks.removeValue(forKey: menuID)?.cancel()
+        }
+
+        guard let item = self.statusItems.removeValue(forKey: provider) else { return }
+        item.menu = nil
+        self.statusBar.removeStatusItem(item)
     }
 
     func isVisible(_ provider: UsageProvider) -> Bool {
