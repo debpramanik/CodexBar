@@ -3,6 +3,8 @@
 ## 0.25 — Unreleased
 
 ### Fixes
+- OpenRouter: keep the menu bar rendering the usage meter instead of falling back to the provider logo when no key limit is configured (#854). Thanks @willytop8!
+- DeepSeek: show balance as plain text instead of a misleading quota-style progress bar (#856). Thanks @jb381!
 - Menu: keep the status menu open when manually refreshing usage from the menu (#845). Thanks @OlimjonovOtabek!
 - Menu bar: remove stale split provider status items instead of hiding them, avoiding leftover second-icon slots on macOS 26.4.
 - Augment: report the real 1-minute keepalive check/min-refresh intervals in startup logs and docs (#434). Thanks @guglielmofonda!
