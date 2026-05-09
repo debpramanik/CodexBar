@@ -3,6 +3,7 @@
 ## 0.25 — Unreleased
 
 ### Providers & Usage
+- Factory/Droid: add token-rate-limit billing windows, Core fallback buckets, and extra usage balance display (#878). Thanks @dantemoon1!
 - Crof: add API-key provider support with request quota and credit balance tracking (#872). Thanks @baanish!
 - OpenRouter, Mistral, and Kimi K2: show balance/spend metrics in menu bar text when quota percentage is not useful (#853). Thanks @willytop8!
 
