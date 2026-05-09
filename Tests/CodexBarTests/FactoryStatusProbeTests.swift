@@ -2,6 +2,18 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+struct FactoryProviderDescriptorTests {
+    @Test
+    func `descriptor keeps legacy labels by default`() {
+        let metadata = FactoryProviderDescriptor.descriptor.metadata
+
+        #expect(metadata.sessionLabel == "Standard")
+        #expect(metadata.weeklyLabel == "Premium")
+        #expect(metadata.opusLabel == nil)
+        #expect(!metadata.supportsOpus)
+    }
+}
+
 struct FactoryStatusSnapshotTests {
     @Test
     func `maps usage snapshot windows and login method`() {

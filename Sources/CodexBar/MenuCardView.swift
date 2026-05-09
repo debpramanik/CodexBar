@@ -84,8 +84,9 @@ struct UsageMenuCardView: View {
 
         struct ProviderCostSection {
             let title: String
-            let percentUsed: Double
+            let percentUsed: Double?
             let spendLine: String
+            let percentLine: String?
         }
 
         let provider: UsageProvider
@@ -330,17 +331,21 @@ private struct ProviderCostContent: View {
             Text(self.section.title)
                 .font(.body)
                 .fontWeight(.medium)
-            UsageProgressBar(
-                percent: self.section.percentUsed,
-                tint: self.progressColor,
-                accessibilityLabel: "Extra usage spent")
+            if let percentUsed = self.section.percentUsed {
+                UsageProgressBar(
+                    percent: percentUsed,
+                    tint: self.progressColor,
+                    accessibilityLabel: "Extra usage spent")
+            }
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.spendLine)
                     .font(.footnote)
                 Spacer()
-                Text(String(format: "%.0f%% used", min(100, max(0, self.section.percentUsed))))
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                if let percentLine = self.section.percentLine {
+                    Text(percentLine)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                }
             }
         }
     }
@@ -740,7 +745,9 @@ extension UsageMenuCardView.Model {
         } else {
             Self.creditsLine(metadata: input.metadata, credits: input.credits, error: input.creditsError)
         }
-        let providerCost: ProviderCostSection? = if input.provider == .claude, !input.showOptionalCreditsAndExtraUsage {
+        let hidesOptionalProviderCost = (input.provider == .claude || input.provider == .factory) &&
+            !input.showOptionalCreditsAndExtraUsage
+        let providerCost: ProviderCostSection? = if hidesOptionalProviderCost {
             nil
         } else {
             Self.providerCostSection(provider: input.provider, cost: input.snapshot?.providerCost)
@@ -955,6 +962,7 @@ extension UsageMenuCardView.Model {
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
         let zaiSessionDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit)
         let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
+        let labels = Self.rateWindowLabels(input: input, snapshot: snapshot)
         if input.provider == .codex, let codexProjection = input.codexProjection {
             metrics.append(contentsOf: Self.codexRateMetrics(
                 input: input,
@@ -965,6 +973,7 @@ extension UsageMenuCardView.Model {
                 input: input,
                 primary: primary,
                 percentStyle: percentStyle,
+                title: labels.primary,
                 zaiTokenDetail: zaiTokenDetail,
                 openRouterQuotaDetail: openRouterQuotaDetail))
         }
@@ -973,9 +982,10 @@ extension UsageMenuCardView.Model {
                 input: input,
                 weekly: weekly,
                 percentStyle: percentStyle,
+                title: labels.secondary,
                 zaiTimeDetail: zaiTimeDetail))
         }
-        if input.metadata.supportsOpus, let opus = snapshot.tertiary {
+        if labels.showsTertiary, let opus = snapshot.tertiary {
             var tertiaryDetailText: String?
             if input.provider == .alibaba,
                let detail = opus.resetDescription,
@@ -992,7 +1002,7 @@ extension UsageMenuCardView.Model {
                 : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
             metrics.append(Metric(
                 id: "tertiary",
-                title: input.metadata.opusLabel ?? "Sonnet",
+                title: labels.tertiary,
                 percent: Self.clamped(input.usageBarsShowUsed ? opus.usedPercent : opus.remainingPercent),
                 percentStyle: percentStyle,
                 resetText: opusResetText,
@@ -1059,10 +1069,25 @@ extension UsageMenuCardView.Model {
         return metrics
     }
 
+    private static func rateWindowLabels(
+        input: Input,
+        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+    {
+        if input.provider == .factory, snapshot.tertiary != nil {
+            return ("5-hour", "Weekly", "Monthly", true)
+        }
+        return (
+            input.metadata.sessionLabel,
+            input.metadata.weeklyLabel,
+            input.metadata.opusLabel ?? "Sonnet",
+            input.metadata.supportsOpus)
+    }
+
     private static func primaryMetric(
         input: Input,
         primary: RateWindow,
         percentStyle: PercentStyle,
+        title: String? = nil,
         zaiTokenDetail: String?,
         openRouterQuotaDetail: String?) -> Metric
     {
@@ -1140,7 +1165,7 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "primary",
-            title: input.metadata.sessionLabel,
+            title: title ?? input.metadata.sessionLabel,
             percent: Self.clamped(
                 input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
             percentStyle: percentStyle,
@@ -1157,6 +1182,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         weekly: RateWindow,
         percentStyle: PercentStyle,
+        title: String? = nil,
         zaiTimeDetail: String?) -> Metric
     {
         var paceDetail = Self.weeklyPaceDetail(
@@ -1213,7 +1239,7 @@ extension UsageMenuCardView.Model {
         }
         return Metric(
             id: "secondary",
-            title: input.metadata.weeklyLabel,
+            title: title ?? input.metadata.weeklyLabel,
             percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
             percentStyle: percentStyle,
             resetText: weeklyResetText,
@@ -1510,8 +1536,18 @@ extension UsageMenuCardView.Model {
         cost: ProviderCostSnapshot?) -> ProviderCostSection?
     {
         guard let cost else { return nil }
-        guard cost.limit > 0 else { return nil }
         guard provider != .synthetic else { return nil }
+
+        if provider == .factory, cost.period == "Extra usage balance" {
+            let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return ProviderCostSection(
+                title: "Extra usage",
+                percentUsed: nil,
+                spendLine: "Balance: \(balance)",
+                percentLine: nil)
+        }
+
+        guard cost.limit > 0 else { return nil }
 
         let used: String
         let limit: String
@@ -1533,7 +1569,8 @@ extension UsageMenuCardView.Model {
         return ProviderCostSection(
             title: title,
             percentUsed: percentUsed,
-            spendLine: "\(periodLabel): \(used) / \(limit)")
+            spendLine: "\(periodLabel): \(used) / \(limit)",
+            percentLine: String(format: "%.0f%% used", min(100, max(0, percentUsed))))
     }
 
     private static func clamped(_ value: Double) -> Double {
