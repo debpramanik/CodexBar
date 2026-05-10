@@ -11,6 +11,7 @@
 - Antigravity: add OAuth-backed remote usage fetching so quotas can refresh even when the IDE is closed (#635). Thanks @abnormal749!
 - MiniMax: add multi-service quota cards for text, speech, image, video, and music coding-plan usage (#605). Thanks @XWind18!
 - Cost history: add an additive models.dev pricing metadata parser/cache pipeline for future provider-scoped cost lookups (#863). Thanks @iam-brain!
+- Cost history: prefer cached models.dev pricing for Codex and Claude cost calculations before bundled fallback tables (#884). Thanks @iam-brain!
 - Notifications: add opt-in quota warning notifications, warning markers, and provider-level thresholds for session and weekly quota windows (#852). Thanks @Alekstodo!
 - Venice: add API-key balance provider support with DIEM/USD balance display and token-account CLI wiring (#865). Thanks @clawSean!
 - Factory/Droid: add token-rate-limit billing windows, Core fallback buckets, and extra usage balance display (#878). Thanks @dantemoon1!
