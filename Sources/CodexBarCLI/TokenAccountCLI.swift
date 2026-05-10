@@ -181,6 +181,8 @@ struct TokenAccountCLIContext {
                 perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .doubao:
+            return nil
         case .abacus:
             return self.makeSnapshot(
                 abacus: ProviderSettingsSnapshot.AbacusProviderSettings(

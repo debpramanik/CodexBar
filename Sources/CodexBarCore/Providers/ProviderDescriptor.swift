@@ -79,6 +79,7 @@ public enum ProviderDescriptorRegistry {
         .warp: WarpProviderDescriptor.descriptor,
         .windsurf: WindsurfProviderDescriptor.descriptor,
         .perplexity: PerplexityProviderDescriptor.descriptor,
+        .doubao: DoubaoProviderDescriptor.descriptor,
         .abacus: AbacusProviderDescriptor.descriptor,
         .mistral: MistralProviderDescriptor.descriptor,
         .deepseek: DeepSeekProviderDescriptor.descriptor,
