@@ -14,6 +14,7 @@ enum ProviderChoice: String, AppEnum {
     case minimax
     case kilo
     case opencode
+    case opencodego
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -28,6 +29,7 @@ enum ProviderChoice: String, AppEnum {
         .minimax: DisplayRepresentation(title: "MiniMax"),
         .kilo: DisplayRepresentation(title: "Kilo"),
         .opencode: DisplayRepresentation(title: "OpenCode"),
+        .opencodego: DisplayRepresentation(title: "OpenCode Go"),
     ]
 
     var provider: UsageProvider {
@@ -42,6 +44,7 @@ enum ProviderChoice: String, AppEnum {
         case .minimax: .minimax
         case .kilo: .kilo
         case .opencode: .opencode
+        case .opencodego: .opencodego
         }
     }
 
@@ -55,6 +58,7 @@ enum ProviderChoice: String, AppEnum {
         case .antigravity: self = .antigravity
         case .cursor: return nil // Cursor not yet supported in widgets
         case .opencode: self = .opencode
+        case .opencodego: self = .opencodego
         case .zai: self = .zai
         case .factory: return nil // Factory not yet supported in widgets
         case .copilot: self = .copilot
@@ -71,8 +75,17 @@ enum ProviderChoice: String, AppEnum {
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets
+        case .windsurf: return nil // Windsurf not yet supported in widgets
         case .perplexity: return nil // Perplexity not yet supported in widgets
         case .mimo: return nil // Xiaomi MiMo not yet supported in widgets
+        case .abacus: return nil // Abacus AI not yet supported in widgets
+        case .mistral: return nil // Mistral not yet supported in widgets
+        case .deepseek: return nil // DeepSeek not yet supported in widgets
+        case .codebuff: return nil // Codebuff not yet supported in widgets
+        case .crof: return nil // Crof not yet supported in widgets
+        case .venice: return nil // Venice not yet supported in widgets
+        case .commandcode: return nil // CommandCode not yet supported in widgets
+        case .stepfun: return nil // StepFun not yet supported in widgets
         }
     }
 }
@@ -95,7 +108,7 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider"
     static let description = IntentDescription("Select the provider to display in the widget.")
 
-    @Parameter(title: "Provider")
+    @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
     init() {
@@ -127,10 +140,10 @@ struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider + Metric"
     static let description = IntentDescription("Select the provider and metric to display.")
 
-    @Parameter(title: "Provider")
+    @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
-    @Parameter(title: "Metric")
+    @Parameter(title: "Metric", default: .credits)
     var metric: CompactMetric
 
     init() {
@@ -180,7 +193,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarWidgetEntry>
     {
         let provider = configuration.provider.provider
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot()
+        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarWidgetEntry(date: Date(), provider: provider, snapshot: snapshot)
         let refresh = Date().addingTimeInterval(30 * 60)
         return Timeline(entries: [entry], policy: .after(refresh))
@@ -209,7 +222,7 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     }
 
     private func makeEntry() -> CodexBarSwitcherEntry {
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot()
+        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let providers = self.availableProviders(from: snapshot)
         let stored = WidgetSelectionStore.loadSelectedProvider()
         let selected = providers.first { $0 == stored } ?? providers.first ?? .codex
@@ -246,10 +259,11 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: CompactMetricSelectionIntent, in context: Context) async -> CodexBarCompactEntry {
         let provider = configuration.provider.provider
+        let metric = configuration.metric
         return CodexBarCompactEntry(
             date: Date(),
             provider: provider,
-            metric: configuration.metric,
+            metric: metric,
             snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
     }
 
@@ -258,11 +272,12 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarCompactEntry>
     {
         let provider = configuration.provider.provider
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot()
+        let metric = configuration.metric
+        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarCompactEntry(
             date: Date(),
             provider: provider,
-            metric: configuration.metric,
+            metric: metric,
             snapshot: snapshot)
         let refresh = Date().addingTimeInterval(30 * 60)
         return Timeline(entries: [entry], policy: .after(refresh))
@@ -270,6 +285,10 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
 }
 
 enum WidgetPreviewData {
+    static func emptySnapshot() -> WidgetSnapshot {
+        WidgetSnapshot(entries: [], enabledProviders: [], generatedAt: Date())
+    }
+
     static func snapshot() -> WidgetSnapshot {
         let primary = RateWindow(usedPercent: 35, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 4h")
         let secondary = RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 3d")

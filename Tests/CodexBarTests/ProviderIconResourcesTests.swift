@@ -16,11 +16,14 @@ struct ProviderIconResourcesTests {
             "minimax",
             "cursor",
             "opencode",
+            "opencodego",
             "alibaba",
             "gemini",
             "antigravity",
             "factory",
             "copilot",
+            "crof",
+            "commandcode",
         ]
         for slug in slugs {
             let url = resources.appending(path: "ProviderIcon-\(slug).svg")

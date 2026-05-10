@@ -43,10 +43,13 @@ struct MenuContent: View {
             switch style {
             case .headline:
                 Text(text).font(.headline)
+                    .accessibilityLabel(text)
             case .primary:
                 Text(text)
+                    .accessibilityLabel(text)
             case .secondary:
                 Text(text).foregroundStyle(.secondary).font(.footnote)
+                    .accessibilityLabel(text)
             }
         case let .action(title, action):
             Button {
@@ -60,11 +63,40 @@ struct MenuContent: View {
                         Text(title)
                     }
                     .foregroundStyle(.primary)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(title)
                 } else {
                     Text(title)
+                        .accessibilityLabel(title)
                 }
             }
             .buttonStyle(.plain)
+        case let .submenu(title, systemImageName, submenuItems):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    if let systemImageName {
+                        Image(systemName: systemImageName)
+                    }
+                    Text(title).font(.headline)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(title)
+                ForEach(Array(submenuItems.enumerated()), id: \.offset) { _, submenuItem in
+                    HStack(spacing: 8) {
+                        if submenuItem.isChecked {
+                            Image(systemName: "checkmark")
+                                .imageScale(.small)
+                                .frame(width: 18, alignment: .center)
+                        } else {
+                            Spacer().frame(width: 18)
+                        }
+                        Text(submenuItem.title)
+                            .foregroundStyle(submenuItem.isEnabled ? .primary : .secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(submenuItem.title)
+                }
+            }
         case .divider:
             Divider()
         }
@@ -88,6 +120,10 @@ struct MenuContent: View {
             self.actions.openStatusPage()
         case .addCodexAccount:
             self.actions.addCodexAccount()
+        case .requestCodexSystemPromotion:
+            return
+        case let .addProviderAccount(provider):
+            self.actions.switchAccount(provider)
         case let .switchAccount(provider):
             self.actions.switchAccount(provider)
         case let .openTerminal(command):
@@ -132,13 +168,48 @@ struct StatusIconView: View {
         Image(nsImage: self.icon)
             .renderingMode(.template)
             .interpolation(.none)
+            .accessibilityLabel(self.accessibilityLabel)
+            .accessibilityValue(self.accessibilityValue)
+    }
+
+    private var accessibilityLabel: String {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: self.provider)
+        return descriptor.metadata.displayName
+    }
+
+    private var accessibilityValue: String {
+        let snapshot = self.store.snapshot(for: self.provider)
+        guard let snap = snapshot else {
+            return "No data"
+        }
+        let remaining = IconRemainingResolver.resolvedRemaining(
+            snapshot: snap,
+            style: self.store.style(for: self.provider))
+        let primary = remaining.primary
+        let percent = primary.map { "\(Int($0 * 100)) percent remaining" } ?? "Unknown"
+        let stale = self.store.isStale(provider: self.provider)
+        return stale ? "\(percent), stale data" : percent
     }
 
     private var icon: NSImage {
-        IconRenderer.makeIcon(
-            primaryRemaining: self.store.snapshot(for: self.provider)?.primary?.remainingPercent,
-            weeklyRemaining: self.store.snapshot(for: self.provider)?.secondary?.remainingPercent,
-            creditsRemaining: self.provider == .codex ? self.store.credits?.remaining : nil,
+        let snapshot = self.store.snapshot(for: self.provider)
+        let remaining = snapshot.map {
+            IconRemainingResolver.resolvedRemaining(snapshot: $0, style: self.store.style(for: self.provider))
+        }
+        let creditsProjection = self.store.codexConsumerProjectionIfNeeded(
+            for: self.provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: snapshot?.updatedAt ?? Date())
+        let creditsRemaining = creditsProjection?.menuBarFallback == .creditsBalance
+            ? self.store.codexMenuBarCreditsRemaining(
+                snapshotOverride: snapshot,
+                now: snapshot?.updatedAt ?? Date())
+            : nil
+        return IconRenderer.makeIcon(
+            primaryRemaining: remaining?.primary,
+            weeklyRemaining: remaining?.secondary,
+            creditsRemaining: creditsRemaining,
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),
             statusIndicator: self.store.statusIndicator(for: self.provider))

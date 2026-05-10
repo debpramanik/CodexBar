@@ -6,19 +6,14 @@ extension UsageStore {
     private static let minimumPaceExpectedPercent: Double = 3
     private static let backfillMaxTimestampMismatch: TimeInterval = 5 * 60
 
-    private struct CodexHistoricalOwnershipContext: Sendable {
-        let canonicalKey: String?
-        let canonicalEmailHashKey: String?
-        let legacyEmailHash: String?
-        let hasAdjacentMultiAccountVeto: Bool
-    }
-
     func weeklyPace(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> UsagePace? {
-        guard provider == .codex || provider == .claude else { return nil }
         guard window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
+        // Codex can refine pace with historical samples because its dashboard exposes enough weekly history to build
+        // an account-scoped usage curve. Other providers should not need a hard-coded allowlist: if their RateWindow
+        // includes a reset time and window duration, the generic linear pace calculation is already defensible.
         if provider == .codex, self.settings.historicalTrackingEnabled {
-            let codexAccountKey = self.codexHistoricalOwnershipContext().canonicalKey
+            let codexAccountKey = self.codexOwnershipContext().canonicalKey
             if self.codexHistoricalDatasetAccountKey == codexAccountKey,
                let historical = CodexHistoricalPaceEvaluator.evaluate(
                    window: window,
@@ -30,6 +25,10 @@ extension UsageStore {
                 resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
             }
         } else {
+            // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
+            // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
+            // (e.g. Factory monthly with only resetsAt).
+            guard window.windowMinutes != nil else { return nil }
             resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080)
         }
 
@@ -40,10 +39,14 @@ extension UsageStore {
 
     func recordCodexHistoricalSampleIfNeeded(snapshot: UsageSnapshot) {
         guard self.settings.historicalTrackingEnabled else { return }
-        guard let weekly = snapshot.secondary else { return }
+        let projection = self.codexConsumerProjection(
+            surface: .liveCard,
+            snapshotOverride: snapshot,
+            now: snapshot.updatedAt)
+        guard let weekly = projection.rateWindow(for: .weekly) else { return }
 
         let sampledAt = snapshot.updatedAt
-        let ownership = self.codexHistoricalOwnershipContext(preferredEmail: snapshot.accountEmail(for: .codex))
+        let ownership = self.codexOwnershipContext(preferredEmail: snapshot.accountEmail(for: .codex))
         let historyStore = self.historicalUsageHistoryStore
         Task.detached(priority: .utility) { [weak self] in
             _ = await historyStore.recordCodexWeekly(
@@ -53,7 +56,7 @@ extension UsageStore {
             let dataset = await historyStore.loadCodexDataset(
                 canonicalAccountKey: ownership.canonicalKey,
                 canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-                legacyEmailHash: ownership.legacyEmailHash,
+                legacyEmailHash: ownership.historicalLegacyEmailHash,
                 hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
             await MainActor.run { [weak self] in
                 self?.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
@@ -66,32 +69,55 @@ extension UsageStore {
             self.setCodexHistoricalDataset(nil, accountKey: nil)
             return
         }
-        let ownership = self.codexHistoricalOwnershipContext(dashboard: self.openAIDashboard)
+        let ownership = self.codexOwnershipContext()
         let dataset = await self.historicalUsageHistoryStore.loadCodexDataset(
             canonicalAccountKey: ownership.canonicalKey,
             canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-            legacyEmailHash: ownership.legacyEmailHash,
+            legacyEmailHash: ownership.historicalLegacyEmailHash,
             hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
         self.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
         if let dashboard = self.openAIDashboard {
-            self.backfillCodexHistoricalFromDashboardIfNeeded(dashboard)
+            let authority = self.evaluateCodexDashboardAuthority(
+                dashboard: dashboard,
+                sourceKind: .liveWeb,
+                routingTargetEmail: self.lastOpenAIDashboardTargetEmail)
+            self.backfillCodexHistoricalFromDashboardIfNeeded(
+                dashboard,
+                authorityDecision: authority.decision,
+                attachedAccountEmail: self.codexDashboardAttachmentEmail(from: authority.input))
         }
     }
 
-    func backfillCodexHistoricalFromDashboardIfNeeded(_ dashboard: OpenAIDashboardSnapshot) {
+    func backfillCodexHistoricalFromDashboardIfNeeded(
+        _ dashboard: OpenAIDashboardSnapshot,
+        authorityDecision: CodexDashboardAuthorityDecision,
+        attachedAccountEmail: String?)
+    {
         guard self.settings.historicalTrackingEnabled else { return }
-        guard !dashboard.usageBreakdown.isEmpty else { return }
+        guard authorityDecision.allowedEffects.contains(.historicalBackfill) else { return }
+        let usageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
+            from: dashboard.usageBreakdown)
+        guard !usageBreakdown.isEmpty else { return }
 
         let codexSnapshot = self.snapshots[.codex]
-        let ownership = self.codexHistoricalOwnershipContext(
-            preferredEmail: codexSnapshot?.accountEmail(for: .codex),
-            dashboard: dashboard)
+        let ownership = self.codexOwnershipContext(preferredEmail: attachedAccountEmail)
         let referenceWindow: RateWindow
         let calibrationAt: Date
-        if let dashboardWeekly = dashboard.secondaryLimit {
+        if let dashboardWeekly = CodexReconciledState.fromAttachedDashboard(
+            snapshot: dashboard,
+            provider: .codex,
+            accountEmail: attachedAccountEmail,
+            accountPlan: nil)?
+            .weekly
+        {
             referenceWindow = dashboardWeekly
             calibrationAt = dashboard.updatedAt
-        } else if let codexSnapshot, let snapshotWeekly = codexSnapshot.secondary {
+        } else if let codexSnapshot,
+                  let snapshotWeekly = self.codexConsumerProjection(
+                      surface: .liveCard,
+                      snapshotOverride: codexSnapshot,
+                      now: codexSnapshot.updatedAt).rateWindow(for: .weekly)
+        {
             let mismatch = abs(codexSnapshot.updatedAt.timeIntervalSince(dashboard.updatedAt))
             guard mismatch <= Self.backfillMaxTimestampMismatch else { return }
             referenceWindow = snapshotWeekly
@@ -101,7 +127,6 @@ extension UsageStore {
         }
 
         let historyStore = self.historicalUsageHistoryStore
-        let usageBreakdown = dashboard.usageBreakdown
         Task.detached(priority: .utility) { [weak self] in
             _ = await historyStore.backfillCodexWeeklyFromUsageBreakdown(
                 usageBreakdown,
@@ -111,7 +136,7 @@ extension UsageStore {
             let dataset = await historyStore.loadCodexDataset(
                 canonicalAccountKey: ownership.canonicalKey,
                 canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-                legacyEmailHash: ownership.legacyEmailHash,
+                legacyEmailHash: ownership.historicalLegacyEmailHash,
                 hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
             await MainActor.run { [weak self] in
                 self?.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
@@ -123,64 +148,5 @@ extension UsageStore {
         self.codexHistoricalDataset = dataset
         self.codexHistoricalDatasetAccountKey = accountKey
         self.historicalPaceRevision += 1
-    }
-
-    private func codexHistoricalOwnershipContext(
-        preferredEmail: String? = nil,
-        dashboard: OpenAIDashboardSnapshot? = nil) -> CodexHistoricalOwnershipContext
-    {
-        let resolvedIdentity = self.currentCodexRuntimeIdentity(
-            source: self.settings.codexResolvedActiveSource,
-            preferCurrentSnapshot: true,
-            allowLastKnownLiveFallback: true)
-        let activeSourceEmail = self.codexAccountScopedRefreshEmail(
-            preferCurrentSnapshot: true,
-            allowLastKnownLiveFallback: true)
-        let normalizedEmail = CodexIdentityResolver.normalizeEmail(
-            preferredEmail ??
-                activeSourceEmail ??
-                self.snapshots[.codex]?.accountEmail(for: .codex) ??
-                dashboard?.signedInEmail ??
-                self.codexAccountEmailForOpenAIDashboard())
-        let canonicalIdentity: CodexIdentity = switch resolvedIdentity {
-        case .unresolved:
-            if let normalizedEmail {
-                .emailOnly(normalizedEmail: normalizedEmail)
-            } else {
-                .unresolved
-            }
-        default:
-            resolvedIdentity
-        }
-        let emailForLegacyHash: String? = switch canonicalIdentity {
-        case let .emailOnly(normalizedEmail):
-            normalizedEmail
-        case .providerAccount, .unresolved:
-            normalizedEmail
-        }
-        return CodexHistoricalOwnershipContext(
-            canonicalKey: CodexHistoryOwnership.canonicalKey(for: canonicalIdentity),
-            canonicalEmailHashKey: normalizedEmail.map { CodexHistoryOwnership.canonicalEmailHashKey(for: $0) },
-            legacyEmailHash: emailForLegacyHash.map { CodexHistoryOwnership.legacyEmailHash(normalizedEmail: $0) },
-            hasAdjacentMultiAccountVeto: self.codexHistoricalHasAdjacentMultiAccountVeto())
-    }
-
-    private func codexHistoricalHasAdjacentMultiAccountVeto() -> Bool {
-        let snapshot = self.settings.codexAccountReconciliationSnapshot
-        var distinctAccounts: Set<String> = []
-
-        if let activeManagedAccount = self.settings.activeManagedCodexAccount {
-            distinctAccounts.insert(CodexIdentityMatcher.selectionKey(
-                for: snapshot.runtimeIdentity(for: activeManagedAccount),
-                fallbackEmail: snapshot.runtimeEmail(for: activeManagedAccount)))
-        }
-
-        if let liveSystemAccount = snapshot.liveSystemAccount {
-            distinctAccounts.insert(CodexIdentityMatcher.selectionKey(
-                for: snapshot.runtimeIdentity(for: liveSystemAccount),
-                fallbackEmail: liveSystemAccount.email))
-        }
-
-        return distinctAccounts.count > 1
     }
 }

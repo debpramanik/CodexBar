@@ -4,8 +4,27 @@ import Observation
 import Testing
 @testable import CodexBar
 
+@Suite(.serialized)
 @MainActor
+// swiftlint:disable:next type_body_length
 struct SettingsStoreTests {
+    private final class ObservationFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set() {
+            self.lock.lock()
+            self.value = true
+            self.lock.unlock()
+        }
+
+        func get() -> Bool {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
+    }
+
     @Test
     func `default refresh frequency is five minutes`() throws {
         let suite = "SettingsStoreTests-default"
@@ -65,6 +84,57 @@ struct SettingsStoreTests {
 
         #expect(storeB.refreshFrequency == .fifteenMinutes)
         #expect(storeB.refreshFrequency.seconds == 900)
+    }
+
+    @Test
+    func `weekly confetti setting defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-weekly-confetti"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.confettiOnWeeklyLimitResetsEnabled == false)
+        storeA.confettiOnWeeklyLimitResetsEnabled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.confettiOnWeeklyLimitResetsEnabled == true)
+    }
+
+    @Test
+    func `provider storage setting defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-provider-storage"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.providerStorageFootprintsEnabled == false)
+        #expect(defaultsA.bool(forKey: "providerStorageFootprintsEnabled") == false)
+        storeA.providerStorageFootprintsEnabled = true
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.providerStorageFootprintsEnabled == true)
     }
 
     @Test
@@ -448,6 +518,121 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `defaults quota warnings to disabled with global thresholds and sound`() throws {
+        let suite = "SettingsStoreTests-quota-warning-defaults"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.quotaWarningNotificationsEnabled == false)
+        #expect(store.quotaWarningThresholds == [50, 20])
+        #expect(store.quotaWarningWindowEnabled(.session) == true)
+        #expect(store.quotaWarningWindowEnabled(.weekly) == true)
+        #expect(store.quotaWarningSoundEnabled == true)
+        #expect(defaults.array(forKey: "quotaWarningThresholds") as? [Int] == [50, 20])
+        #expect(defaults.object(forKey: "quotaWarningSessionEnabled") as? Bool == true)
+        #expect(defaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool == true)
+        #expect(defaults.bool(forKey: "quotaWarningSoundEnabled") == true)
+    }
+
+    @Test
+    func `global quota warning windows persist independently`() throws {
+        let suite = "SettingsStoreTests-quota-warning-window-enabled"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.setQuotaWarningWindowEnabled(.weekly, enabled: false)
+
+        #expect(store.quotaWarningWindowEnabled(.session) == true)
+        #expect(store.quotaWarningWindowEnabled(.weekly) == false)
+        #expect(defaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool == false)
+    }
+
+    @Test
+    func `sanitizes invalid quota warning thresholds from defaults`() throws {
+        let suite = "SettingsStoreTests-quota-warning-sanitize"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set([120, 20, 20, -5, 50], forKey: "quotaWarningThresholds")
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.quotaWarningThresholds == [99, 50, 20, 0])
+        #expect(defaults.array(forKey: "quotaWarningThresholds") as? [Int] == [99, 50, 20, 0])
+    }
+
+    @Test
+    func `quota warning threshold pair resolves blanks and clamps bounds`() {
+        #expect(QuotaWarningThresholds.resolved(upper: nil, lower: nil) == [50, 20])
+        #expect(QuotaWarningThresholds.resolved(upper: nil, lower: 10) == [50, 10])
+        #expect(QuotaWarningThresholds.resolved(upper: 10, lower: nil) == [10, 0])
+        #expect(QuotaWarningThresholds.resolved(upper: 120, lower: -5) == [99, 0])
+    }
+
+    @Test
+    func `provider quota warning override resolves before global thresholds`() throws {
+        let suite = "SettingsStoreTests-quota-warning-provider-override"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        store.quotaWarningThresholds = [50, 20]
+
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [50, 20])
+        store.setQuotaWarningThresholds(provider: .codex, window: .session, thresholds: [10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [10])
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .weekly) == [50, 20])
+
+        store.setQuotaWarningThresholds(provider: .codex, window: .session, thresholds: nil)
+        #expect(store.resolvedQuotaWarningThresholds(provider: .codex, window: .session) == [50, 20])
+    }
+
+    @Test
+    func `provider quota warning windows override global enablement independently`() throws {
+        let suite = "SettingsStoreTests-quota-warning-provider-window-override"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.setQuotaWarningWindowEnabled(.weekly, enabled: false)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .weekly) == false)
+
+        store.setQuotaWarningWindowEnabled(provider: .codex, window: .weekly, enabled: true)
+        store.setQuotaWarningWindowEnabled(provider: .codex, window: .session, enabled: false)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .weekly) == true)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .session) == false)
+        #expect(store.hasQuotaWarningOverride(provider: .codex, window: .weekly) == true)
+        #expect(store.hasQuotaWarningOverride(provider: .codex, window: .session) == true)
+
+        store.setQuotaWarningWindowEnabled(provider: .codex, window: .weekly, enabled: nil)
+        #expect(store.quotaWarningEnabled(provider: .codex, window: .weekly) == false)
+    }
+
+    @Test
     func `defaults claude usage source to auto`() throws {
         let suite = "SettingsStoreTests-claude-source"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -631,7 +816,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `defaults open AI web access to enabled`() throws {
+    func `defaults open AI web access to disabled`() throws {
         let suite = "SettingsStoreTests-openai-web"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -644,9 +829,110 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
+        #expect(store.openAIWebAccessEnabled == false)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == false)
+        #expect(store.openAIWebBatterySaverEnabled == false)
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
+        #expect(store.codexCookieSource == .off)
+    }
+
+    @Test
+    func `infers open AI web access enabled for legacy configured codex cookies`() throws {
+        let suite = "SettingsStoreTests-openai-web-legacy"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.removeObject(forKey: "openAIWebAccessEnabled")
+        defaults.set(false, forKey: "debugDisableKeychainAccess")
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .codex, cookieSource: .auto),
+        ]))
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
         #expect(store.openAIWebAccessEnabled == true)
         #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
+        #expect(store.openAIWebBatterySaverEnabled == false)
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
         #expect(store.codexCookieSource == .auto)
+    }
+
+    @Test
+    func `infers open AI web access enabled for legacy codex config with implicit auto cookies`() throws {
+        let suite = "SettingsStoreTests-openai-web-legacy-implicit-auto"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.removeObject(forKey: "openAIWebAccessEnabled")
+        defaults.set(false, forKey: "debugDisableKeychainAccess")
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .codex),
+        ]))
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.openAIWebAccessEnabled == true)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
+        #expect(store.openAIWebBatterySaverEnabled == false)
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
+        #expect(store.codexCookieSource == .auto)
+    }
+
+    @Test
+    func `disabling open AI web access turns codex cookie source off`() throws {
+        let suite = "SettingsStoreTests-openai-web-toggle"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(false, forKey: "debugDisableKeychainAccess")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.codexCookieSource = .auto
+        #expect(store.codexCookieSource == .auto)
+
+        store.openAIWebAccessEnabled = false
+        #expect(store.codexCookieSource == .off)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == false)
+
+        store.openAIWebAccessEnabled = true
+        #expect(store.codexCookieSource == .auto)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
+    }
+
+    @Test
+    func `open AI web battery saver persists separately from extras availability`() throws {
+        let suite = "SettingsStoreTests-openai-web-battery-saver"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(false, forKey: "debugDisableKeychainAccess")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.openAIWebBatterySaverEnabled == false)
+
+        store.openAIWebBatterySaverEnabled = false
+        #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
+
+        store.openAIWebAccessEnabled = true
+        #expect(store.openAIWebBatterySaverEnabled == false)
     }
 
     @Test
@@ -662,20 +948,18 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.menuObservationToken
         } onChange: {
-            Task { @MainActor in
-                didChange = true
-            }
+            didChange.set()
         }
 
         store.statusChecksEnabled.toggle()
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.get() == true)
     }
 
     @Test
@@ -691,20 +975,18 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.codexCookieSource
         } onChange: {
-            Task { @MainActor in
-                didChange = true
-            }
+            didChange.set()
         }
 
         store.codexCookieSource = .manual
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.get() == true)
     }
 
     @Test
@@ -720,20 +1002,18 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        var didChange = false
+        let didChange = ObservationFlag()
 
         withObservationTracking {
             _ = store.menuObservationToken
         } onChange: {
-            Task { @MainActor in
-                didChange = true
-            }
+            didChange.set()
         }
 
         store.codexActiveSource = .liveSystem
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(didChange == true)
+        #expect(didChange.get() == true)
     }
 
     @Test
@@ -778,6 +1058,7 @@ struct SettingsStoreTests {
             .claude,
             .cursor,
             .opencode,
+            .opencodego,
             .alibaba,
             .factory,
             .antigravity,
@@ -796,8 +1077,17 @@ struct SettingsStoreTests {
             .synthetic,
             .warp,
             .openrouter,
+            .windsurf,
             .perplexity,
             .mimo,
+            .abacus,
+            .mistral,
+            .deepseek,
+            .codebuff,
+            .crof,
+            .venice,
+            .commandcode,
+            .stepfun,
         ])
 
         // Move one provider; ensure it's persisted across instances.

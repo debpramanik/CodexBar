@@ -3,6 +3,20 @@ import Foundation
 
 @MainActor
 struct MenuDescriptor {
+    struct SubmenuItem: Equatable {
+        let title: String
+        let action: MenuAction?
+        let isEnabled: Bool
+        let isChecked: Bool
+
+        init(title: String, action: MenuAction?, isEnabled: Bool = true, isChecked: Bool = false) {
+            self.title = title
+            self.action = action
+            self.isEnabled = isEnabled
+            self.isChecked = isChecked
+        }
+    }
+
     struct Section {
         var entries: [Entry]
     }
@@ -10,6 +24,7 @@ struct MenuDescriptor {
     enum Entry {
         case text(String, TextStyle)
         case action(String, MenuAction)
+        case submenu(String, String?, [SubmenuItem])
         case divider
     }
 
@@ -18,6 +33,7 @@ struct MenuDescriptor {
         case dashboard = "chart.bar"
         case statusPage = "waveform.path.ecg"
         case addAccount = "plus"
+        case systemAccount = "person.crop.circle"
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
@@ -33,13 +49,15 @@ struct MenuDescriptor {
         case secondary
     }
 
-    enum MenuAction {
+    enum MenuAction: Equatable {
         case installUpdate
         case refresh
         case refreshAugmentSession
         case dashboard
         case statusPage
         case addCodexAccount
+        case requestCodexSystemPromotion(UUID)
+        case addProviderAccount(UsageProvider)
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
@@ -56,6 +74,8 @@ struct MenuDescriptor {
         store: UsageStore,
         settings: SettingsStore,
         account: AccountInfo,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator? = nil,
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         updateReady: Bool,
         includeContextualActions: Bool = true) -> MenuDescriptor
     {
@@ -96,7 +116,12 @@ struct MenuDescriptor {
         }
 
         if includeContextualActions {
-            let actions = Self.actionsSection(for: provider, store: store, account: account)
+            let actions = Self.actionsSection(
+                for: provider,
+                store: store,
+                account: account,
+                managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
             if !actions.entries.isEmpty {
                 sections.append(actions)
             }
@@ -121,10 +146,14 @@ struct MenuDescriptor {
 
         if let snap = store.snapshot(for: provider) {
             let resetStyle = settings.resetTimeDisplayStyle
+            let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             if let primary = snap.primary {
-                let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo {
-                    // Warp/Kilo/MiMo primary uses resetDescription for non-reset detail (e.g., "Unlimited", "X/Y credits").
-                    // Avoid rendering it as a "Resets ..." line.
+                let primaryWindow = if provider == .warp || provider == .kilo || provider == .mimo || provider ==
+                    .abacus ||
+                    provider == .deepseek
+                {
+                    // Some providers use resetDescription for non-reset detail
+                    // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
                     RateWindow(
                         usedPercent: primary.usedPercent,
                         windowMinutes: primary.windowMinutes,
@@ -135,20 +164,38 @@ struct MenuDescriptor {
                 }
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.sessionLabel,
+                    title: labels.primary,
                     window: primaryWindow,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
-                if provider == .warp || provider == .kilo || provider == .mimo,
+                if provider == .warp || provider == .kilo || provider == .mimo || provider == .abacus || provider ==
+                    .deepseek,
+                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    !detail.isEmpty
+                {
+                    entries.append(.text(detail, .secondary))
+                }
+                if provider == .crof,
+                   primary.resetsAt != nil,
                    let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
                 {
                     entries.append(.text(detail, .secondary))
                 }
+                if provider == .abacus,
+                   let pace = store.weeklyPace(provider: provider, window: primary)
+                {
+                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
+                    entries.append(.text(paceSummary, .secondary))
+                }
+                if let paceSummary = UsagePaceText.sessionSummary(provider: provider, window: primary) {
+                    entries.append(.text(paceSummary, .secondary))
+                }
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity else { return nil }
+                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof
+                    else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
                     if provider == .kilo, weekly.resetsAt != nil {
@@ -158,7 +205,7 @@ struct MenuDescriptor {
                 }()
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.weeklyLabel,
+                    title: labels.secondary,
                     window: weekly,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
@@ -175,14 +222,14 @@ struct MenuDescriptor {
                     entries.append(.text(paceSummary, .secondary))
                 }
             }
-            if meta.supportsOpus, let opus = snap.tertiary {
+            if labels.showsTertiary, let opus = snap.tertiary {
                 // Perplexity purchased credits don't reset; show the balance as plain text.
                 let opusResetOverride: String? = provider == .perplexity
                     ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     : nil
                 Self.appendRateWindow(
                     entries: &entries,
-                    title: meta.opusLabel ?? "Sonnet",
+                    title: labels.tertiary,
                     window: opus,
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
@@ -250,27 +297,25 @@ struct MenuDescriptor {
         if provider == .kilo {
             let kiloLogin = self.kiloLoginParts(loginMethod: loginMethodText)
             if let pass = kiloLogin.pass {
-                entries.append(.text("Plan: \(AccountFormatter.plan(pass))", .secondary))
+                entries.append(.text("Plan: \(AccountFormatter.plan(pass, provider: provider))", .secondary))
             }
             for detail in kiloLogin.details {
                 entries.append(.text("Activity: \(detail)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
-            if provider == .openrouter || provider == .mimo {
-                if loginMethodText.localizedCaseInsensitiveContains("balance:") {
-                    let balanceValue = loginMethodText
-                        .replacingOccurrences(
-                            of: #"(?i)^\s*balance:\s*"#,
-                            with: "",
-                            options: [.regularExpression])
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    let value = balanceValue.isEmpty ? loginMethodText : balanceValue
-                    entries.append(.text("Balance: \(AccountFormatter.plan(value))", .secondary))
-                } else {
-                    entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
-                }
+            if provider == .openrouter || provider == .mimo,
+               loginMethodText.localizedCaseInsensitiveContains("balance:")
+            {
+                let balanceValue = loginMethodText
+                    .replacingOccurrences(
+                        of: #"(?i)^\s*balance:\s*"#,
+                        with: "",
+                        options: [.regularExpression])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = balanceValue.isEmpty ? loginMethodText : balanceValue
+                entries.append(.text("Balance: \(AccountFormatter.plan(value, provider: provider))", .secondary))
             } else {
-                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText))", .secondary))
+                entries.append(.text("Plan: \(AccountFormatter.plan(loginMethodText, provider: provider))", .secondary))
             }
         }
 
@@ -280,7 +325,7 @@ struct MenuDescriptor {
                 entries.append(.text("Account: \(redacted)", .secondary))
             }
             if loginMethodText?.isEmpty ?? true, let fallbackPlan = fallback.plan, !fallbackPlan.isEmpty {
-                entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan))", .secondary))
+                entries.append(.text("Plan: \(AccountFormatter.plan(fallbackPlan, provider: provider))", .secondary))
             }
         }
 
@@ -326,7 +371,9 @@ struct MenuDescriptor {
     private static func actionsSection(
         for provider: UsageProvider?,
         store: UsageStore,
-        account: AccountInfo) -> Section
+        account: AccountInfo,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?,
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?) -> Section
     {
         var entries: [Entry] = []
         let targetProvider = provider ?? store.enabledProviders().first
@@ -362,7 +409,9 @@ struct MenuDescriptor {
                 provider: targetProvider,
                 store: store,
                 settings: store.settings,
-                account: fallbackAccount)
+                account: fallbackAccount,
+                managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+                codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
             ProviderCatalog.implementation(for: targetProvider)?
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
@@ -387,6 +436,7 @@ struct MenuDescriptor {
             entries.append(.action("Update ready, restart now?", .installUpdate))
         }
         entries.append(contentsOf: [
+            .action("Refresh", .refresh),
             .action("Settings...", .settings),
             .action("About CodexBar", .about),
             .action("Quit", .quit),
@@ -432,6 +482,21 @@ struct MenuDescriptor {
         return false
     }
 
+    private static func rateWindowLabels(
+        provider: UsageProvider,
+        metadata: ProviderMetadata,
+        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+    {
+        if provider == .factory, snapshot.tertiary != nil {
+            return ("5-hour", "Weekly", "Monthly", true)
+        }
+        return (
+            metadata.sessionLabel,
+            metadata.weeklyLabel,
+            metadata.opusLabel ?? "Sonnet",
+            metadata.supportsOpus)
+    }
+
     private static func appendRateWindow(
         entries: inout [Entry],
         title: String,
@@ -462,8 +527,12 @@ struct MenuDescriptor {
 }
 
 private enum AccountFormatter {
-    static func plan(_ text: String) -> String {
-        let cleaned = UsageFormatter.cleanPlanName(text)
+    static func plan(_ text: String, provider: UsageProvider) -> String {
+        let cleaned = if provider == .codex {
+            CodexPlanFormatting.displayName(text) ?? UsageFormatter.cleanPlanName(text)
+        } else {
+            UsageFormatter.cleanPlanName(text)
+        }
         return cleaned.isEmpty ? text : cleaned
     }
 
@@ -481,7 +550,9 @@ extension MenuDescriptor.MenuAction {
         case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
-        case .addCodexAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
+        case .addCodexAccount, .addProviderAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
+        case .requestCodexSystemPromotion:
+            nil
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue

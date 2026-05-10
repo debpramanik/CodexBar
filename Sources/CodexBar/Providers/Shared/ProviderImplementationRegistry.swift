@@ -17,6 +17,7 @@ enum ProviderImplementationRegistry {
         case .claude: ClaudeProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()
+        case .opencodego: OpenCodeGoProviderImplementation()
         case .alibaba: AlibabaCodingPlanProviderImplementation()
         case .factory: FactoryProviderImplementation()
         case .gemini: GeminiProviderImplementation()
@@ -36,8 +37,17 @@ enum ProviderImplementationRegistry {
         case .synthetic: SyntheticProviderImplementation()
         case .openrouter: OpenRouterProviderImplementation()
         case .warp: WarpProviderImplementation()
+        case .windsurf: WindsurfProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
         case .mimo: MiMoProviderImplementation()
+        case .abacus: AbacusProviderImplementation()
+        case .mistral: MistralProviderImplementation()
+        case .deepseek: DeepSeekProviderImplementation()
+        case .codebuff: CodebuffProviderImplementation()
+        case .crof: CrofProviderImplementation()
+        case .venice: VeniceProviderImplementation()
+        case .commandcode: CommandCodeProviderImplementation()
+        case .stepfun: StepFunProviderImplementation()
         }
     }
 

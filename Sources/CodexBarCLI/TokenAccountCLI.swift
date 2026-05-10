@@ -77,16 +77,13 @@ struct TokenAccountCLIContext {
 
     func settingsSnapshot(for provider: UsageProvider, account: ProviderTokenAccount?) -> ProviderSettingsSnapshot? {
         let config = self.providerConfig(for: provider)
+        if let snapshot = self.makeCookieBackedSnapshot(provider: provider, account: account, config: config) {
+            return snapshot
+        }
 
         switch provider {
         case .codex:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                codex: ProviderSettingsSnapshot.CodexProviderSettings(
-                    usageDataSource: .auto,
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
+            return self.makeSnapshot(codex: self.makeCodexSettingsSnapshot(account: account))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
             let claudeSource: ClaudeUsageDataSource = routing.isOAuth ? .oauth : .auto
@@ -99,79 +96,6 @@ struct TokenAccountCLIContext {
                     webExtrasEnabled: false,
                     cookieSource: cookieSource,
                     manualCookieHeader: routing.manualCookieHeader))
-        case .cursor:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                cursor: ProviderSettingsSnapshot.CursorProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
-        case .opencode:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader,
-                    workspaceID: config?.workspaceID))
-        case .alibaba:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader,
-                    apiRegion: self.resolveAlibabaCodingPlanRegion(config)))
-        case .factory:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                factory: ProviderSettingsSnapshot.FactoryProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
-        case .minimax:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader,
-                    apiRegion: self.resolveMiniMaxRegion(config)))
-        case .augment:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                augment: ProviderSettingsSnapshot.AugmentProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
-        case .amp:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                amp: ProviderSettingsSnapshot.AmpProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
-        case .ollama:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
-        case .kimi:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                kimi: ProviderSettingsSnapshot.KimiProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
-        case .mimo:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
-            return self.makeSnapshot(
-                mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
-                    cookieSource: cookieSource,
-                    manualCookieHeader: cookieHeader))
         case .zai:
             return self.makeSnapshot(
                 zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
@@ -184,14 +108,102 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(
                 jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings(
                     ideBasePath: nil))
+        default:
+            return nil
+        }
+    }
+
+    private func makeCookieBackedSnapshot(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        config: ProviderConfig?) -> ProviderSettingsSnapshot?
+    {
+        let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
+        let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
+
+        switch provider {
+        case .cursor:
+            return self.makeSnapshot(
+                cursor: ProviderSettingsSnapshot.CursorProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .opencode:
+            return self.makeSnapshot(
+                opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    workspaceID: config?.workspaceID))
+        case .opencodego:
+            return self.makeSnapshot(
+                opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    workspaceID: config?.workspaceID))
+        case .alibaba:
+            return self.makeSnapshot(
+                alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    apiRegion: self.resolveAlibabaCodingPlanRegion(config)))
+        case .factory:
+            return self.makeSnapshot(
+                factory: ProviderSettingsSnapshot.FactoryProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .minimax:
+            return self.makeSnapshot(
+                minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader,
+                    apiRegion: self.resolveMiniMaxRegion(config)))
+        case .augment:
+            return self.makeSnapshot(
+                augment: ProviderSettingsSnapshot.AugmentProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .amp:
+            return self.makeSnapshot(
+                amp: ProviderSettingsSnapshot.AmpProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .ollama:
+            return self.makeSnapshot(
+                ollama: ProviderSettingsSnapshot.OllamaProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .kimi:
+            return self.makeSnapshot(
+                kimi: ProviderSettingsSnapshot.KimiProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .perplexity:
-            let cookieHeader = self.manualCookieHeader(provider: provider, account: account, config: config)
-            let cookieSource = self.cookieSource(provider: provider, account: account, config: config)
             return self.makeSnapshot(
                 perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
-        case .gemini, .antigravity, .copilot, .kiro, .vertexai, .kimik2, .synthetic, .openrouter, .warp:
+        case .mimo:
+            return self.makeSnapshot(
+                mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .abacus:
+            return self.makeSnapshot(
+                abacus: ProviderSettingsSnapshot.AbacusProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .mistral:
+            return self.makeSnapshot(
+                mistral: ProviderSettingsSnapshot.MistralProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
+        case .stepfun:
+            return self.makeSnapshot(
+                stepfun: ProviderSettingsSnapshot.StepFunProviderSettings(
+                    cookieSource: cookieSource,
+                    manualToken: cookieHeader ?? "",
+                    username: config?.sanitizedAPIKey ?? "",
+                    password: ""))
+        default:
             return nil
         }
     }
@@ -201,6 +213,7 @@ struct TokenAccountCLIContext {
         claude: ProviderSettingsSnapshot.ClaudeProviderSettings? = nil,
         cursor: ProviderSettingsSnapshot.CursorProviderSettings? = nil,
         opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
+        opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
         alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
@@ -212,13 +225,17 @@ struct TokenAccountCLIContext {
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
         perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil,
-        mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil) -> ProviderSettingsSnapshot
+        mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil,
+        abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
+        mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
+        stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
             claude: claude,
             cursor: cursor,
             opencode: opencode,
+            opencodego: opencodego,
             alibaba: alibaba,
             factory: factory,
             minimax: minimax,
@@ -230,7 +247,24 @@ struct TokenAccountCLIContext {
             ollama: ollama,
             jetbrains: jetbrains,
             perplexity: perplexity,
-            mimo: mimo)
+            mimo: mimo,
+            abacus: abacus,
+            mistral: mistral,
+            stepfun: stepfun)
+    }
+
+    private func makeCodexSettingsSnapshot(account: ProviderTokenAccount?) ->
+        ProviderSettingsSnapshot.CodexProviderSettings
+    {
+        let config = self.providerConfig(for: .codex)
+        let reconciliationSnapshot = self.codexAccountReconciler().loadSnapshot()
+        let resolvedActiveSource = CodexActiveSourceResolver.resolve(from: reconciliationSnapshot)
+        return CodexProviderSettingsBuilder.make(input: CodexProviderSettingsBuilderInput(
+            usageDataSource: .auto,
+            cookieSource: self.cookieSource(provider: .codex, account: account, config: config),
+            manualCookieHeader: self.manualCookieHeader(provider: .codex, account: account, config: config),
+            reconciliationSnapshot: reconciliationSnapshot,
+            resolvedActiveSource: resolvedActiveSource))
     }
 
     func environment(
@@ -293,6 +327,15 @@ struct TokenAccountCLIContext {
 
     private func providerConfig(for provider: UsageProvider) -> ProviderConfig? {
         self.config.providerConfig(for: provider)
+    }
+
+    private func codexAccountReconciler() -> DefaultCodexAccountReconciler {
+        DefaultCodexAccountReconciler(
+            activeSource: self.providerConfig(for: .codex)?.codexActiveSource ?? .liveSystem,
+            baseEnvironment: ProcessInfo.processInfo.environment,
+            managedEnvironmentBuilder: { environment, account in
+                CodexHomeScope.scopedEnvironment(base: environment, codexHome: account.managedHomePath)
+            })
     }
 
     private func manualCookieHeader(

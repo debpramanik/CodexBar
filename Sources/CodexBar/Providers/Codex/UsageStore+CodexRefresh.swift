@@ -36,6 +36,7 @@ extension UsageStore {
                 self.lastCreditsError = nil
                 self.lastCreditsSnapshot = credits
                 self.lastCreditsSnapshotAccountKey = expectedGuard.accountKey
+                self.lastCreditsSource = .api
                 self.creditsFailureStreak = 0
                 self.lastCodexAccountScopedRefreshGuard = expectedGuard
             }
@@ -69,6 +70,7 @@ extension UsageStore {
                         self.lastCodexAccountScopedRefreshGuard = expectedGuard
                     } else {
                         self.credits = nil
+                        self.lastCreditsSource = .none
                         self.lastCreditsError = "Codex credits are still loading; will retry shortly."
                     }
                 }
@@ -89,6 +91,7 @@ extension UsageStore {
                 } else {
                     self.lastCreditsError = message
                     self.credits = nil
+                    self.lastCreditsSource = .none
                 }
             }
         }
@@ -98,8 +101,7 @@ extension UsageStore {
         if let override = self._test_codexCreditsLoaderOverride {
             return try await override()
         }
-        return try await self.codexCreditsFetcher().loadLatestCredits(
-            keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
+        return try await self.codexCreditsFetcher().loadLatestCredits()
     }
 
     func waitForCodexSnapshot(minimumUpdatedAt: Date) async -> UsageSnapshot? {

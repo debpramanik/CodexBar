@@ -1,19 +1,28 @@
 import CodexBarCore
-import CryptoKit
 import Foundation
 
 extension UsageStore {
+    private nonisolated static let weeklyLimitResetThreshold = 1.0
+    private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
+    private nonisolated static let weeklyWindowMinutes = 7 * 24 * 60
+
+    struct WeeklyLimitResetDetectorState: Codable, Equatable {
+        let wasAboveThreshold: Bool
+        let lastObservedAt: Date
+    }
+
+    func supportsPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
+        switch provider {
+        case .codex, .claude:
+            true
+        default:
+            false
+        }
+    }
+
     private nonisolated static let planUtilizationMinSampleIntervalSeconds: TimeInterval = 60 * 60
     private nonisolated static let planUtilizationResetEquivalenceToleranceSeconds: TimeInterval = 2 * 60
     private nonisolated static let planUtilizationMaxSamples: Int = 24 * 730
-
-    private struct CodexPlanUtilizationOwnershipContext {
-        let canonicalKey: String?
-        let canonicalEmailHashKey: String?
-        let legacyEmailHash: String?
-        let currentWeeklyResetAt: Date?
-        let hasAdjacentMultiAccountVeto: Bool
-    }
 
     private struct PlanUtilizationSeriesKey: Hashable {
         let name: PlanUtilizationSeriesName
@@ -52,7 +61,7 @@ extension UsageStore {
     }
 
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
-        guard provider == .codex || provider == .claude else { return true }
+        guard self.supportsPlanUtilizationHistory(for: provider) else { return true }
         return self.shouldShowRefreshingMenuCard(for: provider)
     }
 
@@ -65,7 +74,23 @@ extension UsageStore {
         now: Date = Date())
         async
     {
-        guard provider == .codex || provider == .claude else { return }
+        let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
+        guard !samples.isEmpty else { return }
+
+        let detectorAccountKey = self.planUtilizationAccountKey(
+            for: provider,
+            snapshot: snapshot,
+            preferredAccount: account)
+        await MainActor.run {
+            self.postWeeklyLimitResetCelebrationIfNeeded(
+                provider: provider,
+                account: account,
+                snapshot: snapshot,
+                accountKey: detectorAccountKey,
+                samples: samples)
+        }
+
+        guard self.supportsPlanUtilizationHistory(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
@@ -80,7 +105,6 @@ extension UsageStore {
                 shouldAdoptUnscopedHistory: shouldAdoptUnscopedHistory,
                 providerBuckets: &providerBuckets)
             let histories = providerBuckets.histories(for: accountKey)
-            let samples = Self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
 
             guard let updatedHistories = Self.updatedPlanUtilizationHistories(
                 existingHistories: histories,
@@ -195,7 +219,63 @@ extension UsageStore {
         return max(0, min(100, value))
     }
 
-    private nonisolated static func planUtilizationSeriesSamples(
+    private func postWeeklyLimitResetCelebrationIfNeeded(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        snapshot: UsageSnapshot,
+        accountKey: String?,
+        samples: [PlanUtilizationSeriesSample])
+    {
+        guard let weeklySample = samples.last(where: { $0.name == .weekly }) else { return }
+
+        let accountIdentifier = self.weeklyLimitResetAccountIdentifier(
+            provider: provider,
+            account: account,
+            snapshot: snapshot,
+            accountKey: accountKey)
+        let detectorKey = Self.weeklyLimitResetDetectorStateKey(
+            provider: provider,
+            accountIdentifier: accountIdentifier)
+        let currentUsed = weeklySample.entry.usedPercent
+        let currentObservedAt = weeklySample.entry.capturedAt
+        let wasAboveThreshold = currentUsed > Self.weeklyLimitResetThreshold
+        if let existingState = self.weeklyLimitResetDetectorStates[detectorKey],
+           currentObservedAt <= existingState.lastObservedAt
+        {
+            return
+        }
+
+        let shouldPost = self.weeklyLimitResetDetectorStates[detectorKey]?.wasAboveThreshold == true
+            && !wasAboveThreshold
+        self.weeklyLimitResetDetectorStates[detectorKey] = WeeklyLimitResetDetectorState(
+            wasAboveThreshold: wasAboveThreshold,
+            lastObservedAt: currentObservedAt)
+        self.persistWeeklyLimitResetDetectorStates()
+
+        guard shouldPost else { return }
+        let accountLabel = self.weeklyLimitResetAccountLabel(
+            provider: provider,
+            account: account,
+            snapshot: snapshot)
+        let event = WeeklyLimitResetEvent(
+            provider: provider,
+            accountIdentifier: accountIdentifier,
+            accountLabel: accountLabel,
+            usedPercent: currentUsed)
+
+        CodexBarLog.logger(LogCategories.confetti).info(
+            "Weekly limit reset",
+            metadata: [
+                "provider": provider.rawValue,
+                "accountIdentifier": accountIdentifier,
+                "accountLabel": accountLabel ?? "",
+                "usedPercent": String(format: "%.2f", currentUsed),
+                "observedAt": String(format: "%.0f", currentObservedAt.timeIntervalSince1970),
+            ])
+        NotificationCenter.default.post(name: .codexbarWeeklyLimitReset, object: event)
+    }
+
+    private func planUtilizationSeriesSamples(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         capturedAt: Date) -> [PlanUtilizationSeriesSample]
@@ -206,7 +286,8 @@ extension UsageStore {
             guard let name,
                   let window,
                   let windowMinutes = window.windowMinutes,
-                  let usedPercent = self.clampedPercent(window.usedPercent)
+                  windowMinutes > 0,
+                  let usedPercent = Self.clampedPercent(window.usedPercent)
             else {
                 return
             }
@@ -223,14 +304,22 @@ extension UsageStore {
 
         switch provider {
         case .codex:
-            appendWindow(snapshot.primary, name: self.codexSeriesName(for: snapshot.primary?.windowMinutes))
-            appendWindow(snapshot.secondary, name: self.codexSeriesName(for: snapshot.secondary?.windowMinutes))
+            let projection = self.codexConsumerProjection(
+                surface: .liveCard,
+                snapshotOverride: snapshot,
+                now: capturedAt)
+            for lane in projection.planUtilizationLanes {
+                appendWindow(lane.window, name: lane.role)
+            }
         case .claude:
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
         default:
-            break
+            for window in [snapshot.primary, snapshot.secondary, snapshot.tertiary] {
+                guard let window, window.windowMinutes == Self.weeklyWindowMinutes else { continue }
+                appendWindow(window, name: .weekly)
+            }
         }
 
         return samplesByKey.values.sorted { lhs, rhs in
@@ -238,17 +327,6 @@ extension UsageStore {
                 return lhs.windowMinutes < rhs.windowMinutes
             }
             return lhs.name.rawValue < rhs.name.rawValue
-        }
-    }
-
-    private nonisolated static func codexSeriesName(for windowMinutes: Int?) -> PlanUtilizationSeriesName? {
-        switch windowMinutes {
-        case 300:
-            .session
-        case 10080:
-            .weekly
-        default:
-            nil
         }
     }
 
@@ -428,13 +506,65 @@ extension UsageStore {
         return nil
     }
 
-    private nonisolated static func sha256Hex(_ input: String) -> String {
-        let digest = SHA256.hash(data: Data(input.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-
     private func shouldDeferClaudePlanUtilizationHistory(provider: UsageProvider) -> Bool {
         provider == .claude && self.shouldHidePlanUtilizationMenuItem(for: .claude)
+    }
+
+    private func weeklyLimitResetAccountIdentifier(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        snapshot: UsageSnapshot,
+        accountKey: String?) -> String
+    {
+        let identity = snapshot.identity(for: provider)
+        return account?.id.uuidString.lowercased()
+            ?? accountKey
+            ?? identity?.accountEmail
+            ?? identity?.accountOrganization
+            ?? provider.rawValue
+    }
+
+    private func weeklyLimitResetAccountLabel(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?,
+        snapshot: UsageSnapshot) -> String?
+    {
+        let identity = snapshot.identity(for: provider)
+        return account?.label
+            ?? identity?.accountEmail
+            ?? identity?.accountOrganization
+    }
+
+    private nonisolated static func weeklyLimitResetDetectorStateKey(
+        provider: UsageProvider,
+        accountIdentifier: String) -> String
+    {
+        "\(provider.rawValue):\(accountIdentifier)"
+    }
+
+    nonisolated static func loadWeeklyLimitResetDetectorStates(from userDefaults: UserDefaults)
+        -> [String: WeeklyLimitResetDetectorState]
+    {
+        guard let data = userDefaults.data(forKey: self.weeklyLimitResetDetectorDefaultsKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: WeeklyLimitResetDetectorState].self, from: data)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to decode weekly limit reset detector state",
+                metadata: ["error": String(describing: error)])
+            return [:]
+        }
+    }
+
+    private func persistWeeklyLimitResetDetectorStates() {
+        do {
+            let data = try JSONEncoder().encode(self.weeklyLimitResetDetectorStates)
+            self.settings.userDefaults.set(data, forKey: Self.weeklyLimitResetDetectorDefaultsKey)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to encode weekly limit reset detector state",
+                metadata: ["error": String(describing: error)])
+        }
     }
 
     private func resolvePlanUtilizationAccountKey(
@@ -495,7 +625,7 @@ extension UsageStore {
         shouldAdoptUnscopedHistory: Bool,
         providerBuckets: inout PlanUtilizationHistoryBuckets) -> String?
     {
-        let ownership = self.codexPlanUtilizationOwnershipContext(snapshot: snapshot)
+        let ownership = self.codexOwnershipContext(snapshot: snapshot, includeDashboardFallback: true)
         if let canonicalKey = ownership.canonicalKey {
             let resolvedAccountKey = self.materializeCodexPlanUtilizationHistoryIfNeeded(
                 into: canonicalKey,
@@ -517,7 +647,7 @@ extension UsageStore {
 
     private func materializeCodexPlanUtilizationHistoryIfNeeded(
         into canonicalKey: String,
-        ownership: CodexPlanUtilizationOwnershipContext,
+        ownership: CodexOwnershipContext,
         shouldAdoptUnscopedHistory: Bool,
         providerBuckets: inout PlanUtilizationHistoryBuckets) -> String
     {
@@ -526,7 +656,9 @@ extension UsageStore {
         var legacyRawKeysToRemove: [String] = []
 
         for rawKey in scopedRawKeys {
-            let owner = CodexHistoryOwnership.classifyPersistedKey(rawKey, legacyEmailHash: ownership.legacyEmailHash)
+            let owner = CodexHistoryOwnership.classifyPersistedKey(
+                rawKey,
+                legacyEmailHash: ownership.planUtilizationLegacyEmailHash)
             let matchesTargetContinuity = CodexHistoryOwnership.belongsToTargetContinuity(
                 owner,
                 targetCanonicalKey: canonicalKey,
@@ -559,7 +691,7 @@ extension UsageStore {
                scopedRawKeys: Self.scopedRawKeysRelevantToCodexUnscopedPlanHistory(providerBuckets),
                targetCanonicalKey: canonicalKey,
                canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-               legacyEmailHash: ownership.legacyEmailHash,
+               legacyEmailHash: ownership.planUtilizationLegacyEmailHash,
                hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
         {
             historiesToMerge.append(providerBuckets.unscoped)
@@ -622,52 +754,9 @@ extension UsageStore {
             .sorted()
     }
 
-    private func codexPlanUtilizationOwnershipContext(
-        snapshot: UsageSnapshot?) -> CodexPlanUtilizationOwnershipContext
-    {
-        let resolvedIdentity = self.currentCodexRuntimeIdentity(
-            source: self.settings.codexResolvedActiveSource,
-            preferCurrentSnapshot: true,
-            allowLastKnownLiveFallback: true)
-        let activeSourceEmail = self.codexAccountScopedRefreshEmail(
-            preferCurrentSnapshot: true,
-            allowLastKnownLiveFallback: true)
-        let normalizedEmail = CodexIdentityResolver.normalizeEmail(
-            activeSourceEmail ??
-                snapshot?.accountEmail(for: .codex) ??
-                self.snapshots[.codex]?.accountEmail(for: .codex) ??
-                self.codexAccountEmailForOpenAIDashboard())
-        let canonicalIdentity: CodexIdentity = switch resolvedIdentity {
-        case .unresolved:
-            if let normalizedEmail {
-                .emailOnly(normalizedEmail: normalizedEmail)
-            } else {
-                .unresolved
-            }
-        default:
-            resolvedIdentity
-        }
-        let emailForLegacyHash: String? = switch canonicalIdentity {
-        case let .emailOnly(normalizedEmail):
-            normalizedEmail
-        case .providerAccount, .unresolved:
-            normalizedEmail
-        }
-        let currentWeeklyResetAt = snapshot?.secondary?.resetsAt ??
-            self.snapshots[.codex]?.secondary?.resetsAt ??
-            self.openAIDashboard?.secondaryLimit?.resetsAt
-
-        return CodexPlanUtilizationOwnershipContext(
-            canonicalKey: CodexHistoryOwnership.canonicalKey(for: canonicalIdentity),
-            canonicalEmailHashKey: normalizedEmail.map { CodexHistoryOwnership.canonicalEmailHashKey(for: $0) },
-            legacyEmailHash: emailForLegacyHash.map { Self.codexLegacyPlanUtilizationEmailHashKey(for: $0) },
-            currentWeeklyResetAt: currentWeeklyResetAt,
-            hasAdjacentMultiAccountVeto: self.codexPlanUtilizationHasAdjacentMultiAccountVeto())
-    }
-
     private func recoverableCodexOpaquePlanHistoryRawKey(
         targetCanonicalKey: String,
-        ownership: CodexPlanUtilizationOwnershipContext,
+        ownership: CodexOwnershipContext,
         providerBuckets: PlanUtilizationHistoryBuckets) -> String?
     {
         guard !ownership.hasAdjacentMultiAccountVeto,
@@ -677,7 +766,9 @@ extension UsageStore {
         }
 
         let candidates = providerBuckets.accounts.compactMap { rawKey, histories -> String? in
-            let owner = CodexHistoryOwnership.classifyPersistedKey(rawKey, legacyEmailHash: ownership.legacyEmailHash)
+            let owner = CodexHistoryOwnership.classifyPersistedKey(
+                rawKey,
+                legacyEmailHash: ownership.planUtilizationLegacyEmailHash)
             guard case .legacyOpaqueScoped = owner else { return nil }
             guard Self.isRecoverableCodexOpaquePlanHistory(
                 histories,
@@ -783,7 +874,7 @@ extension UsageStore {
         recoverableRawKey: String,
         targetWeeklyResetAt: Date,
         targetCanonicalKey: String,
-        ownership: CodexPlanUtilizationOwnershipContext,
+        ownership: CodexOwnershipContext,
         providerBuckets: PlanUtilizationHistoryBuckets) -> Bool
     {
         providerBuckets.accounts.contains { rawKey, histories in
@@ -795,7 +886,9 @@ extension UsageStore {
                 return false
             }
 
-            let owner = CodexHistoryOwnership.classifyPersistedKey(rawKey, legacyEmailHash: ownership.legacyEmailHash)
+            let owner = CodexHistoryOwnership.classifyPersistedKey(
+                rawKey,
+                legacyEmailHash: ownership.planUtilizationLegacyEmailHash)
             switch owner {
             case .legacyOpaqueScoped:
                 return false
@@ -819,25 +912,6 @@ extension UsageStore {
                 self.areEquivalentPlanUtilizationResetBoundaries(entry.resetsAt, targetWeeklyResetAt)
             }
         }
-    }
-
-    private func codexPlanUtilizationHasAdjacentMultiAccountVeto() -> Bool {
-        let snapshot = self.settings.codexAccountReconciliationSnapshot
-        var distinctAccounts: Set<String> = []
-
-        if let activeManagedAccount = self.settings.activeManagedCodexAccount {
-            distinctAccounts.insert(CodexIdentityMatcher.selectionKey(
-                for: snapshot.runtimeIdentity(for: activeManagedAccount),
-                fallbackEmail: snapshot.runtimeEmail(for: activeManagedAccount)))
-        }
-
-        if let liveSystemAccount = snapshot.liveSystemAccount {
-            distinctAccounts.insert(CodexIdentityMatcher.selectionKey(
-                for: snapshot.runtimeIdentity(for: liveSystemAccount),
-                fallbackEmail: liveSystemAccount.email))
-        }
-
-        return distinctAccounts.count > 1
     }
 
     private nonisolated static func mergedPlanUtilizationHistories(
@@ -895,10 +969,6 @@ extension UsageStore {
         self.codexLegacyPlanUtilizationEmailHashKey(for: normalizedEmail)
     }
     #endif
-
-    private nonisolated static func codexLegacyPlanUtilizationEmailHashKey(for normalizedEmail: String) -> String {
-        self.sha256Hex("\(UsageProvider.codex.rawValue):email:\(normalizedEmail)")
-    }
 }
 
 actor PlanUtilizationHistoryPersistenceCoordinator {
