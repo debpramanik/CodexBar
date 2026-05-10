@@ -386,6 +386,52 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `refresh preserves cache when fetched catalog only has different pinned snapshot`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        let cachedCatalog = try Self.catalog("""
+        {
+          "google-vertex-anthropic": {
+            "id": "google-vertex-anthropic",
+            "models": {
+              "claude-sonnet-4@20250101": {
+                "id": "claude-sonnet-4@20250101",
+                "cost": { "input": 3, "output": 15 }
+              }
+            }
+          }
+        }
+        """)
+        ModelsDevCache.save(catalog: cachedCatalog, fetchedAt: old, cacheRoot: root)
+
+        let fetchedCatalog = Data("""
+        {
+          "google-vertex-anthropic": {
+            "id": "google-vertex-anthropic",
+            "models": {
+              "claude-sonnet-4@20250201": {
+                "id": "claude-sonnet-4@20250201",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          }
+        }
+        """.utf8)
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((fetchedCatalog, Self.response(status: 200))))))
+
+        let lookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "google-vertex-anthropic",
+            modelID: "claude-sonnet-4@20250101",
+            cacheRoot: root))
+
+        #expect(lookup.pricing.inputCostPerToken == 3 / 1_000_000.0)
+    }
+
+    @Test
     func `refresh ignores unpriceable models in old cache continuity check`() async throws {
         let root = try Self.cacheRoot()
         let old = Date(timeIntervalSince1970: 1)

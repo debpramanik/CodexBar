@@ -163,9 +163,7 @@ struct ModelsDevProvider: Codable, Equatable, Sendable {
     }
 
     func containsModel(matching cachedModel: ModelsDevModel) -> Bool {
-        self.models.values.contains {
-            $0.isPriceable && ModelsDevModelIDNormalizer.idsMatch($0.id, cachedModel.id)
-        }
+        self.pricing(modelID: cachedModel.id) != nil
     }
 }
 
@@ -305,11 +303,6 @@ enum ModelsDevModelIDNormalizer {
         }
 
         return candidates
-    }
-
-    static func idsMatch(_ lhs: String, _ rhs: String) -> Bool {
-        let lhsCandidates = Set(self.candidates(lhs))
-        return self.candidates(rhs).contains { lhsCandidates.contains($0) }
     }
 }
 
