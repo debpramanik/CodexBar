@@ -203,6 +203,238 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `refresh updates cache when fetched catalog renames model key but keeps id`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+
+        let renamedCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-4o-mini-renamed": {
+                "id": "gpt-4o-mini",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "google-vertex-anthropic": {
+            "id": "google-vertex-anthropic",
+            "models": {
+              "claude-sonnet-4-6-renamed": {
+                "id": "claude-sonnet-4-6@default",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          }
+        }
+        """.utf8)
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((renamedCatalog, Self.response(status: 200))))))
+
+        let lookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "openai",
+            modelID: "gpt-4o-mini",
+            cacheRoot: root))
+
+        #expect(lookup.normalizedModelID == "gpt-4o-mini")
+        #expect(lookup.pricing.inputCostPerToken == 99 / 1_000_000.0)
+    }
+
+    @Test
+    func `refresh preserves cache when fetched matching model is not priceable`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+
+        let partialCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-4o-mini": {
+                "id": "gpt-4o-mini",
+                "cost": { "input": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "google-vertex-anthropic": {
+            "id": "google-vertex-anthropic",
+            "models": {
+              "claude-sonnet-4-6@default": {
+                "id": "claude-sonnet-4-6@default",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          }
+        }
+        """.utf8)
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((partialCatalog, Self.response(status: 200))))))
+
+        let lookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "openai",
+            modelID: "gpt-4o-mini",
+            cacheRoot: root))
+
+        #expect(lookup.pricing.inputCostPerToken == 0.15 / 1_000_000.0)
+    }
+
+    @Test
+    func `refresh updates cache when fetched catalog canonicalizes alias model id`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+
+        let canonicalizedCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-4o-mini": {
+                "id": "gpt-4o-mini",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 99, "output": 99 }
+              },
+              "shared-model": {
+                "id": "shared-model",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          },
+          "google-vertex-anthropic": {
+            "id": "google-vertex-anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          }
+        }
+        """.utf8)
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((canonicalizedCatalog, Self.response(status: 200))))))
+
+        let defaultLookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "google-vertex-anthropic",
+            modelID: "claude-sonnet-4-6@default",
+            cacheRoot: root))
+        let baseLookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "google-vertex-anthropic",
+            modelID: "claude-sonnet-4-6",
+            cacheRoot: root))
+
+        #expect(defaultLookup.pricing.inputCostPerToken == 99 / 1_000_000.0)
+        #expect(baseLookup.pricing.inputCostPerToken == 99 / 1_000_000.0)
+    }
+
+    @Test
+    func `refresh ignores unpriceable models in old cache continuity check`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        let cachedCatalog = try Self.catalog("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-4o-mini": {
+                "id": "gpt-4o-mini",
+                "cost": { "input": 0.15, "output": 0.6 }
+              },
+              "unpriced-preview": {
+                "id": "unpriced-preview"
+              }
+            }
+          }
+        }
+        """)
+        ModelsDevCache.save(catalog: cachedCatalog, fetchedAt: old, cacheRoot: root)
+
+        let fetchedCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-4o-mini": {
+                "id": "gpt-4o-mini",
+                "cost": { "input": 99, "output": 99 }
+              }
+            }
+          }
+        }
+        """.utf8)
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((fetchedCatalog, Self.response(status: 200))))))
+
+        let lookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "openai",
+            modelID: "gpt-4o-mini",
+            cacheRoot: root))
+
+        #expect(lookup.pricing.inputCostPerToken == 99 / 1_000_000.0)
+    }
+
+    @Test
     func `fresh cache does not refresh`() async throws {
         let root = try Self.cacheRoot()
         try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
@@ -265,6 +497,10 @@ struct ModelsDevPricingTests {
 
     private static func fixtureCatalog() throws -> ModelsDevCatalog {
         try JSONDecoder().decode(ModelsDevCatalog.self, from: self.fixtureData())
+    }
+
+    private static func catalog(_ json: String) throws -> ModelsDevCatalog {
+        try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
     }
 
     private static func cacheRoot() throws -> URL {
