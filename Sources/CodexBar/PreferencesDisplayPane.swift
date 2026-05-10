@@ -78,10 +78,24 @@ struct DisplayPane: View {
                         title: L("show_credits_extra_usage_title"),
                         subtitle: L("show_credits_extra_usage_subtitle"),
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
-                    PreferenceToggleRow(
-                        title: L("show_all_token_accounts_title"),
-                        subtitle: L("show_all_token_accounts_subtitle"),
-                        binding: self.$settings.showAllTokenAccountsInMenu)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("multi_account_layout_title"))
+                                .font(.body)
+                            Text(L("multi_account_layout_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Picker(L("multi_account_layout_title"), selection: self.$settings.multiAccountMenuLayout) {
+                            ForEach(MultiAccountMenuLayout.allCases) { layout in
+                                Text(layout.label).tag(layout)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
                     self.overviewProviderSelector
                 }
             }

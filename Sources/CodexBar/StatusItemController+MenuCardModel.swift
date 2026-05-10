@@ -5,12 +5,15 @@ extension StatusItemController {
     func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,
-        errorOverride: String? = nil) -> UsageMenuCardView.Model?
+        errorOverride: String? = nil,
+        forceOverrideCard: Bool = false,
+        accountOverride: AccountInfo? = nil) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
-        let surface: CodexConsumerProjection.Surface = if snapshotOverride != nil || errorOverride != nil {
+        let usesOverrideCard = forceOverrideCard || snapshotOverride != nil || errorOverride != nil
+        let surface: CodexConsumerProjection.Surface = if usesOverrideCard {
             .overrideCard
         } else {
             .liveCard
@@ -87,7 +90,7 @@ extension StatusItemController {
             dashboardError: dashboardError,
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
-            account: self.store.accountInfo(for: target),
+            account: accountOverride ?? self.store.accountInfo(for: target),
             isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
             lastError: errorOverride
                 ?? codexProjection?.userFacingErrors.usage
@@ -107,6 +110,10 @@ extension StatusItemController {
             ],
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    func accountInfo(for account: CodexVisibleAccount) -> AccountInfo {
+        AccountInfo(email: account.email, plan: account.workspaceLabel)
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {

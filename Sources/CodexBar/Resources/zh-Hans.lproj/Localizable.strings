@@ -473,6 +473,10 @@
 "show_credits_extra_usage_subtitle" = "在菜单中显示 Codex 积分和 Claude 额外用量部分。";
 "show_all_token_accounts_title" = "显示所有令牌账户";
 "show_all_token_accounts_subtitle" = "在菜单中堆叠令牌账户（否则显示账户切换栏）。";
+"multi_account_layout_title" = "多账户布局";
+"multi_account_layout_subtitle" = "选择分段账户切换或堆叠账户卡片。";
+"multi_account_layout_segmented" = "分段";
+"multi_account_layout_stacked" = "堆叠";
 "overview_tab_providers_title" = "概览标签提供商";
 "configure" = "配置…";
 "overview_enable_merge_icons_hint" = "启用合并图标以配置概览标签提供商。";

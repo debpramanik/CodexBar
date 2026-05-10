@@ -466,6 +466,10 @@
 "show_credits_extra_usage_subtitle" = "Show Codex Credits and Claude Extra usage sections in the menu.";
 "show_all_token_accounts_title" = "Show all token accounts";
 "show_all_token_accounts_subtitle" = "Stack token accounts in the menu (otherwise show an account switcher bar).";
+"multi_account_layout_title" = "Multi-account layout";
+"multi_account_layout_subtitle" = "Choose segmented account switching or stacked account cards.";
+"multi_account_layout_segmented" = "Segmented";
+"multi_account_layout_stacked" = "Stacked";
 "overview_tab_providers_title" = "Overview tab providers";
 "configure" = "Configure…";
 "overview_enable_merge_icons_hint" = "Enable Merge Icons to configure Overview tab providers.";
