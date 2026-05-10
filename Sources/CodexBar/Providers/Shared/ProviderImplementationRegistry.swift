@@ -40,6 +40,7 @@ enum ProviderImplementationRegistry {
         case .windsurf: WindsurfProviderImplementation()
         case .perplexity: PerplexityProviderImplementation()
         case .mimo: MiMoProviderImplementation()
+        case .doubao: DoubaoProviderImplementation()
         case .abacus: AbacusProviderImplementation()
         case .mistral: MistralProviderImplementation()
         case .deepseek: DeepSeekProviderImplementation()

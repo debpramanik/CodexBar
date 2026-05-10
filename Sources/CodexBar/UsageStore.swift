@@ -898,6 +898,7 @@ extension UsageStore {
                 .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
                 .mimo: "Xiaomi MiMo debug log not yet implemented",
+                .doubao: "Doubao debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",
                 .commandcode: "Command Code debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
@@ -974,8 +975,8 @@ extension UsageStore {
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .factory, .copilot, .vertexai, .kilo, .kiro, .kimi,
-                     .kimik2, .jetbrains, .perplexity, .mimo, .abacus, .mistral, .codebuff, .crof, .windsurf, .venice,
-                     .commandcode, .stepfun:
+                     .kimik2, .jetbrains, .perplexity, .mimo, .doubao, .abacus, .mistral, .codebuff, .crof, .windsurf,
+                     .venice, .commandcode, .stepfun:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

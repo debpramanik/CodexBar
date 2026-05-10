@@ -186,6 +186,8 @@ struct TokenAccountCLIContext {
                 mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .doubao:
+            return nil
         case .abacus:
             return self.makeSnapshot(
                 abacus: ProviderSettingsSnapshot.AbacusProviderSettings(

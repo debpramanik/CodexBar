@@ -78,6 +78,7 @@ enum ProviderChoice: String, AppEnum {
         case .windsurf: return nil // Windsurf not yet supported in widgets
         case .perplexity: return nil // Perplexity not yet supported in widgets
         case .mimo: return nil // Xiaomi MiMo not yet supported in widgets
+        case .doubao: return nil // Doubao not yet supported in widgets
         case .abacus: return nil // Abacus AI not yet supported in widgets
         case .mistral: return nil // Mistral not yet supported in widgets
         case .deepseek: return nil // DeepSeek not yet supported in widgets

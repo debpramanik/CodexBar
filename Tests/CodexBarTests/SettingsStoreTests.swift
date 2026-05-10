@@ -1080,6 +1080,7 @@ struct SettingsStoreTests {
             .windsurf,
             .perplexity,
             .mimo,
+            .doubao,
             .abacus,
             .mistral,
             .deepseek,

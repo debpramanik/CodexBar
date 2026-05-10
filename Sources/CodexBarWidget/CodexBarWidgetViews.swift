@@ -284,6 +284,7 @@ private struct ProviderSwitchChip: View {
         case .windsurf: "Windsurf"
         case .perplexity: "Pplx"
         case .mimo: "MiMo"
+        case .doubao: "Doubao"
         case .abacus: "Abacus"
         case .mistral: "Mistral"
         case .deepseek: "DeepSeek"
@@ -655,6 +656,8 @@ enum WidgetColors {
             Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
         case .mimo:
             Color(red: 1.0, green: 105 / 255, blue: 0)
+        case .doubao:
+            Color(red: 45 / 255, green: 136 / 255, blue: 255 / 255) // Doubao blue
         case .abacus:
             Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
         case .mistral:
