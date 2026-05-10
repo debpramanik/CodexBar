@@ -213,16 +213,12 @@ struct StatusMenuTests {
         settings.selectedMenuProvider = nil
 
         let registry = ProviderRegistry.shared
-        var enabledProviders: [UsageProvider] = []
+        let selectedProviders: Set<UsageProvider> = [.codex, .claude]
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = enabledProviders.count < 2
+            let shouldEnable = selectedProviders.contains(provider)
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-            if shouldEnable {
-                enabledProviders.append(provider)
-            }
         }
-        #expect(enabledProviders.count == 2)
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
