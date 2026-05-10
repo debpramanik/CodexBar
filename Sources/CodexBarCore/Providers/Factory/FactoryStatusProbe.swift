@@ -1216,8 +1216,8 @@ public struct FactoryStatusProbe: Sendable {
             bearerToken: bearerToken,
             baseURL: baseURL)
 
-        let userId = self.extractUserIdFromAuth(authInfo)
-            ?? Self.userIdFromBearerToken(bearerToken)
+        let userId = factoryUserIdFromAuth(authInfo)
+            ?? factoryUserIdFromBearerToken(bearerToken)
 
         if let billingLimits = try await self.fetchBillingLimitsIfAvailable(
             cookieHeader: cookieHeader,
@@ -1605,27 +1605,6 @@ public struct FactoryStatusProbe: Sendable {
         return description.localizedCaseInsensitiveContains("missing refresh token")
     }
 
-    private func extractUserIdFromAuth(_ auth: FactoryAuthResponse) -> String? {
-        Self.normalizedString(auth.userProfile?.id)
-    }
-
-    private static func userIdFromBearerToken(_ token: String?) -> String? {
-        guard let token,
-              let claims = UsageFetcher.parseJWT(token),
-              let subject = claims["sub"] as? String
-        else {
-            return nil
-        }
-        return self.normalizedString(subject)
-    }
-
-    private static func normalizedString(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        return value
-    }
-
     private func buildSnapshot(
         authInfo: FactoryAuthResponse,
         usageData: FactoryUsageResponse,
@@ -1682,6 +1661,27 @@ public struct FactoryStatusProbe: Sendable {
             extraUsageBalanceCents: billingLimits.extraUsageBalanceCents,
             overagePreference: billingLimits.overagePreference)
     }
+}
+
+private func factoryUserIdFromAuth(_ auth: FactoryAuthResponse) -> String? {
+    factoryNormalizedString(auth.userProfile?.id)
+}
+
+private func factoryUserIdFromBearerToken(_ token: String?) -> String? {
+    guard let token,
+          let claims = UsageFetcher.parseJWT(token),
+          let subject = claims["sub"] as? String
+    else {
+        return nil
+    }
+    return factoryNormalizedString(subject)
+}
+
+private func factoryNormalizedString(_ value: String?) -> String? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+        return nil
+    }
+    return value
 }
 
 #else

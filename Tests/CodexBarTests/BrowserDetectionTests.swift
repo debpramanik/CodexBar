@@ -104,17 +104,17 @@ struct BrowserDetectionTests {
         var preflightCount = 0
 
         KeychainAccessGate.withTaskOverrideForTesting(false) {
-            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting({ _, _ in
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                 preflightCount += 1
                 return .interactionRequired
-            }) {
+            } operation: {
                 #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == false)
             }
 
-            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting({ _, _ in
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                 preflightCount += 1
                 return .allowed
-            }) {
+            } operation: {
                 #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == false)
                 #expect(
                     BrowserCookieAccessGate.shouldAttempt(
