@@ -103,7 +103,7 @@ struct ProvidersPane: View {
                         }
                     })
             } else {
-                Text("Select a provider")
+                Text(L("select_a_provider"))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
@@ -131,7 +131,7 @@ struct ProvidersPane: View {
                         active.onConfirm()
                         self.activeConfirmation = nil
                     }
-                    Button("Cancel", role: .cancel) { self.activeConfirmation = nil }
+                    Button(L("cancel"), role: .cancel) { self.activeConfirmation = nil }
                 }
             },
             message: {
@@ -180,9 +180,9 @@ struct ProvidersPane: View {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
         } else if self.store.isStale(provider: provider) {
-            usageText = "last fetch failed"
+            usageText = L("last_fetch_failed")
         } else {
-            usageText = "usage not fetched yet"
+            usageText = L("usage_not_fetched_yet")
         }
 
         let presentationContext = ProviderPresentationContext(
@@ -203,8 +203,7 @@ struct ProvidersPane: View {
         let projection = self.settings.codexVisibleAccountProjection
         let degradedNotice: CodexAccountsSectionNotice? = if projection.hasUnreadableAddedAccountStore {
             CodexAccountsSectionNotice(
-                text: "Managed account storage is unreadable. Live account access is still available, "
-                    + "but managed add, re-auth, and remove actions are disabled until the store is recoverable.",
+                text: L("managed_account_storage_unreadable"),
                 tone: .warning)
         } else {
             nil
@@ -307,9 +306,9 @@ struct ProvidersPane: View {
     func requestManagedCodexAccountRemoval(_ account: CodexVisibleAccount) {
         guard let accountID = account.storedAccountID else { return }
         self.activeConfirmation = ProviderSettingsConfirmationState(
-            title: "Remove Codex account?",
-            message: "Remove \(account.email) from CodexBar? Its managed Codex home will be deleted.",
-            confirmTitle: "Remove",
+            title: L("remove_codex_account_title"),
+            message: String(format: L("remove_account_message"), account.email),
+            confirmTitle: L("remove"),
             onConfirm: {
                 Task { @MainActor in
                     await self.removeManagedCodexAccount(id: accountID)
@@ -468,10 +467,10 @@ struct ProvidersPane: View {
         let options: [ProviderSettingsPickerOption]
         if provider == .openrouter {
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (API key limit)"),
+                    title: L("primary_api_key_limit")),
             ]
         } else if SettingsStore.isBalanceOnlyProvider(provider) {
             options = [
@@ -480,10 +479,10 @@ struct ProvidersPane: View {
         } else if provider == .abacus {
             let metadata = self.store.metadata(for: provider)
             options = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (\(metadata.sessionLabel))"),
+                    title: String(format: L("metric_primary"), metadata.sessionLabel)),
             ]
         } else {
             let metadata = self.store.metadata(for: provider)
@@ -492,19 +491,19 @@ struct ProvidersPane: View {
             let supportsTertiary = self.settings.menuBarMetricSupportsTertiary(for: provider, snapshot: snapshot)
             let supportsExtraUsage = self.settings.menuBarMetricSupportsExtraUsage(for: provider, snapshot: snapshot)
             var metricOptions: [ProviderSettingsPickerOption] = [
-                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: "Automatic"),
+                ProviderSettingsPickerOption(id: MenuBarMetricPreference.automatic.rawValue, title: L("automatic")),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.primary.rawValue,
-                    title: "Primary (\(metadata.sessionLabel))"),
+                    title: String(format: L("metric_primary"), metadata.sessionLabel)),
                 ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.secondary.rawValue,
-                    title: "Secondary (\(metadata.weeklyLabel))"),
+                    title: String(format: L("metric_secondary"), metadata.weeklyLabel)),
             ]
             if supportsTertiary {
                 let tertiaryTitle = metadata.opusLabel ?? MenuBarMetricPreference.tertiary.label
                 metricOptions.append(ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.tertiary.rawValue,
-                    title: "Tertiary (\(tertiaryTitle))"))
+                    title: String(format: L("metric_tertiary"), tertiaryTitle)))
             }
             if supportsExtraUsage {
                 metricOptions.append(ProviderSettingsPickerOption(
@@ -514,13 +513,13 @@ struct ProvidersPane: View {
             if supportsAverage {
                 metricOptions.append(ProviderSettingsPickerOption(
                     id: MenuBarMetricPreference.average.rawValue,
-                    title: "Average (\(metadata.sessionLabel) + \(metadata.weeklyLabel))"))
+                    title: String(format: L("metric_average"), metadata.sessionLabel, metadata.weeklyLabel)))
             }
             options = metricOptions
         }
         return ProviderSettingsPickerDescriptor(
             id: "menuBarMetric",
-            title: "Menu bar metric",
+            title: L("menu_bar_metric_title"),
             subtitle: Self.menuBarMetricPickerSubtitle(for: provider),
             binding: Binding(
                 get: {
@@ -540,13 +539,13 @@ struct ProvidersPane: View {
     private static func menuBarMetricPickerSubtitle(for provider: UsageProvider) -> String {
         switch provider {
         case .deepseek:
-            "Shows the DeepSeek balance in the menu bar."
+            L("menu_bar_metric_subtitle_deepseek")
         case .mistral:
-            "Shows current-month Mistral API spend in the menu bar."
+            L("menu_bar_metric_subtitle_mistral")
         case .kimik2:
-            "Shows Kimi K2 API-key credits in the menu bar."
+            L("menu_bar_metric_subtitle_kimik2")
         default:
-            "Choose which window drives the menu bar percent."
+            L("menu_bar_metric_subtitle")
         }
     }
 
@@ -647,22 +646,20 @@ struct ProvidersPane: View {
            error == .authenticationInProgress
         {
             return CodexAccountsSectionNotice(
-                text: "A managed Codex login is already running. Wait for it to finish before adding "
-                    + "or re-authenticating another account.",
+                text: L("managed_login_already_running"),
                 tone: .warning)
         }
 
         if let error = error as? ManagedCodexAccountServiceError {
             let message = switch error {
             case .loginFailed:
-                "Managed Codex login did not complete. Try again after finishing the browser login flow."
+                L("managed_login_failed")
             case .missingEmail:
-                "Codex login completed, but no account email was available. Try again after confirming "
-                    + "the account is fully signed in."
+                L("managed_login_missing_email")
             case .workspaceSelectionCancelled:
-                "CodexBar found multiple workspaces, but no workspace was selected."
+                L("workspace_selection_cancelled")
             case let .unsafeManagedHome(path):
-                "CodexBar refused to modify an unexpected managed home path: \(path)"
+                String(format: L("unsafe_managed_home"), path)
             }
             return CodexAccountsSectionNotice(text: message, tone: .warning)
         }

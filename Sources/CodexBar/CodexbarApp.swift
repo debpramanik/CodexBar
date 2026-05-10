@@ -43,6 +43,7 @@ struct CodexBarApp: App {
 
         let preferencesSelection = PreferencesSelection()
         let settings = SettingsStore()
+        Self.applyLanguagePreference(from: settings)
         let managedCodexAccountCoordinator = ManagedCodexAccountCoordinator()
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {
             _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
@@ -102,6 +103,15 @@ struct CodexBarApp: App {
         self.preferencesSelection.tab = tab
         NSApp.activate(ignoringOtherApps: true)
         _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+    }
+
+    private static func applyLanguagePreference(from settings: SettingsStore) {
+        let language = settings.appLanguage
+        if language.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        } else {
+            UserDefaults.standard.set([language], forKey: "AppleLanguages")
+        }
     }
 }
 
