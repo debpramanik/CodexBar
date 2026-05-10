@@ -962,6 +962,13 @@ extension UsageMenuCardView.Model {
         if input.provider == .antigravity {
             return Self.antigravityMetrics(input: input, snapshot: snapshot)
         }
+        if input.provider == .minimax {
+            if let minimaxUsage = snapshot.minimaxUsage {
+                if let services = minimaxUsage.services, !services.isEmpty {
+                    return Self.minimaxMetrics(services: services, input: input)
+                }
+            }
+        }
         var metrics: [Metric] = []
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
@@ -1594,18 +1601,5 @@ extension UsageMenuCardView.Model {
 
     private static func clamped(_ value: Double) -> Double {
         min(100, max(0, value))
-    }
-
-    private static func progressColor(for provider: UsageProvider) -> Color {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-        return Color(red: color.red, green: color.green, blue: color.blue)
-    }
-
-    private static func resetText(
-        for window: RateWindow,
-        style: ResetTimeDisplayStyle,
-        now: Date) -> String?
-    {
-        UsageFormatter.resetLine(for: window, style: style, now: now)
     }
 }
