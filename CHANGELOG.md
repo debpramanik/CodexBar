@@ -2,10 +2,6 @@
 
 ## 0.25 — Unreleased
 
-### Site
-- Keep the primary website and app About link on `codexbar.app`, with `codex.bar` as an alias.
-- Refresh `codexbar.app` with a structured aurora background, animated headline gradient, glassy provider tiles, and a matching social card. Punch up the README with badges and the new social hero.
-
 ### Providers & Usage
 - Localization: add Simplified Chinese app strings and an in-app language selector (#819). Thanks @markhome1!
 - Antigravity: add OAuth-backed remote usage fetching so quotas can refresh even when the IDE is closed (#635). Thanks @abnormal749!
