@@ -40,6 +40,7 @@
 - Claude: allow web/sessionKey token accounts to specify `organizationId` so linked Anthropic emails can target the intended org (#848).
 - DeepSeek: show a positive CNY balance when the API also returns an empty USD balance (#873).
 - Vertex AI: detect service-account ADC files from `GOOGLE_APPLICATION_CREDENTIALS` and use `gcloud` to fetch access tokens (#871).
+- Menu: keep Cost and Subscription Utilization submenus stable by deferring parent card rebuilds while hosted submenus are open (#862).
 - OpenRouter: keep the menu bar rendering the usage meter instead of falling back to the provider logo when no key limit is configured (#854). Thanks @willytop8!
 - DeepSeek: show balance as plain text instead of a misleading quota-style progress bar (#856). Thanks @jb381!
 - Menu: keep the status menu open when manually refreshing usage from the menu (#845). Thanks @OlimjonovOtabek!
