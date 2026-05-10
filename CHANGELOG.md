@@ -37,6 +37,7 @@
 - Droid: send the bearer JWT subject as the usage `userId` when Factory omits `userProfile.id`, avoiding false login failures (#626). Thanks @CrystalChen1017!
 - Droid: fall back to token/allowance math when the Factory API reports a zero ratio despite non-zero usage (#864). Thanks @proxynico!
 - Alibaba: point the International Coding Plan dashboard link at the current `coding_plan` route and clarify unsupported API-key quota errors (#612).
+- Claude: allow web/sessionKey token accounts to specify `organizationId` so linked Anthropic emails can target the intended org (#848).
 - OpenRouter: keep the menu bar rendering the usage meter instead of falling back to the provider logo when no key limit is configured (#854). Thanks @willytop8!
 - DeepSeek: show balance as plain text instead of a misleading quota-style progress bar (#856). Thanks @jb381!
 - Menu: keep the status menu open when manually refreshing usage from the menu (#845). Thanks @OlimjonovOtabek!

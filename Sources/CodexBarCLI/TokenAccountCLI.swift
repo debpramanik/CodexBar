@@ -95,7 +95,8 @@ struct TokenAccountCLIContext {
                     usageDataSource: claudeSource,
                     webExtrasEnabled: false,
                     cookieSource: cookieSource,
-                    manualCookieHeader: routing.manualCookieHeader))
+                    manualCookieHeader: routing.manualCookieHeader,
+                    organizationID: account?.sanitizedOrganizationID))
         case .zai:
             return self.makeSnapshot(
                 zai: ProviderSettingsSnapshot.ZaiProviderSettings(apiRegion: self.resolveZaiRegion(config)))
