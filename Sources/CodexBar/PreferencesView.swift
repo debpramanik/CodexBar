@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
 enum PreferencesTab: String, CaseIterable, Hashable {
@@ -41,6 +42,7 @@ struct PreferencesView: View {
     @Bindable var selection: PreferencesSelection
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
+    let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @State private var contentWidth: CGFloat = PreferencesTab.general.preferredWidth
     @State private var contentHeight: CGFloat = PreferencesTab.general.preferredHeight
 
@@ -50,7 +52,8 @@ struct PreferencesView: View {
         updater: UpdaterProviding,
         selection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
-        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil)
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
+        runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
     {
         self.settings = settings
         self.store = store
@@ -62,6 +65,7 @@ struct PreferencesView: View {
                 settingsStore: settings,
                 usageStore: store,
                 managedAccountCoordinator: managedCodexAccountCoordinator)
+        self.runProviderLoginFlow = runProviderLoginFlow
     }
 
     var body: some View {
@@ -74,7 +78,8 @@ struct PreferencesView: View {
                 settings: self.settings,
                 store: self.store,
                 managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator)
+                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+                runProviderLoginFlow: self.runProviderLoginFlow)
                 .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 

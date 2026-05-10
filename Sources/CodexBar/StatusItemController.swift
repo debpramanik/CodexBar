@@ -8,6 +8,7 @@ import QuartzCore
 @MainActor
 protocol StatusItemControlling: AnyObject {
     func openMenuFromShortcut()
+    func runLoginFlowFromSettings(provider: UsageProvider) async
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
 }
 

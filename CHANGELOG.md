@@ -3,6 +3,7 @@
 ## 0.25 — Unreleased
 
 ### Providers & Usage
+- Antigravity: add OAuth-backed remote usage fetching so quotas can refresh even when the IDE is closed (#635). Thanks @abnormal749!
 - MiniMax: add multi-service quota cards for text, speech, image, video, and music coding-plan usage (#605). Thanks @XWind18!
 - Cost history: add an additive models.dev pricing metadata parser/cache pipeline for future provider-scoped cost lookups (#863). Thanks @iam-brain!
 - Notifications: add opt-in quota warning notifications, warning markers, and provider-level thresholds for session and weekly quota windows (#852). Thanks @Alekstodo!
@@ -14,7 +15,6 @@
 - StepFun: add username/password or Oasis-Token provider support for Step Plan rate-limit tracking (#815). Thanks @tevenfeng!
 - OpenRouter, Mistral, and Kimi K2: show balance/spend metrics in menu bar text when quota percentage is not useful (#853). Thanks @willytop8!
 - Usage pace: show session-level pace indicators for Codex and Claude 5-hour windows (#355). Thanks @johnlarkin1!
-
 ### Fixes
 - Startup: avoid blocking menu-bar creation on synchronous defaults migration/default seeding when macOS preferences services stall.
 - Cost history: keep manual refreshes on the incremental scanner cache and drain per-line JSON parse allocations so large Codex/Claude histories do not trigger full local log rescans and CPU/memory spikes.
