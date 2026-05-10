@@ -28,6 +28,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
+| Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
 | MiniMax | Manual/browser session via Coding Plan web path (`web`), or Coding Plan API token (`api`). |
 | Kimi | Auth token from `kimi-auth` cookie/manual token/env → usage API (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
@@ -75,6 +76,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Supports global and BigModel CN quota hosts; override with `Z_AI_API_HOST` or `Z_AI_QUOTA_URL`.
 - Status: none yet.
 - Details: `docs/zai.md`.
+
+## Manus
+- Session token via browser `session_id` cookie, manual Settings entry, `MANUS_SESSION_TOKEN`, or `MANUS_COOKIE`.
+- Credits endpoint: `POST https://api.manus.im/user.v1.UserService/GetAvailableCredits`.
+- Auto mode prefers cached/browser cookies before env fallback; manual mode accepts either a bare `session_id` value or a full Cookie header.
+- Status: none yet.
 
 ## MiniMax
 - Coding Plan API token or web session from configured/manual/browser sources.

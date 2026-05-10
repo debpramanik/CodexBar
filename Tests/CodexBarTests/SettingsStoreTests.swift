@@ -1088,6 +1088,7 @@ struct SettingsStoreTests {
             .copilot,
             .zai,
             .minimax,
+            .manus,
             .kimi,
             .kilo,
             .kiro,

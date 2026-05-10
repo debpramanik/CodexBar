@@ -12,6 +12,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         alibaba: AlibabaCodingPlanProviderSettings? = nil,
         factory: FactoryProviderSettings? = nil,
         minimax: MiniMaxProviderSettings? = nil,
+        manus: ManusProviderSettings? = nil,
         zai: ZaiProviderSettings? = nil,
         copilot: CopilotProviderSettings? = nil,
         kilo: KiloProviderSettings? = nil,
@@ -38,6 +39,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             alibaba: alibaba,
             factory: factory,
             minimax: minimax,
+            manus: manus,
             zai: zai,
             copilot: copilot,
             kilo: kilo,
@@ -162,6 +164,16 @@ public struct ProviderSettingsSnapshot: Sendable {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
             self.apiRegion = apiRegion
+        }
+    }
+
+    public struct ManusProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
         }
     }
 
@@ -336,6 +348,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let alibaba: AlibabaCodingPlanProviderSettings?
     public let factory: FactoryProviderSettings?
     public let minimax: MiniMaxProviderSettings?
+    public let manus: ManusProviderSettings?
     public let zai: ZaiProviderSettings?
     public let copilot: CopilotProviderSettings?
     public let kilo: KiloProviderSettings?
@@ -367,6 +380,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         alibaba: AlibabaCodingPlanProviderSettings?,
         factory: FactoryProviderSettings?,
         minimax: MiniMaxProviderSettings?,
+        manus: ManusProviderSettings?,
         zai: ZaiProviderSettings?,
         copilot: CopilotProviderSettings?,
         kilo: KiloProviderSettings?,
@@ -393,6 +407,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.alibaba = alibaba
         self.factory = factory
         self.minimax = minimax
+        self.manus = manus
         self.zai = zai
         self.copilot = copilot
         self.kilo = kilo
@@ -420,6 +435,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case alibaba(ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings)
     case factory(ProviderSettingsSnapshot.FactoryProviderSettings)
     case minimax(ProviderSettingsSnapshot.MiniMaxProviderSettings)
+    case manus(ProviderSettingsSnapshot.ManusProviderSettings)
     case zai(ProviderSettingsSnapshot.ZaiProviderSettings)
     case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
     case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
@@ -448,6 +464,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings?
     public var factory: ProviderSettingsSnapshot.FactoryProviderSettings?
     public var minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings?
+    public var manus: ProviderSettingsSnapshot.ManusProviderSettings?
     public var zai: ProviderSettingsSnapshot.ZaiProviderSettings?
     public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
     public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
@@ -480,6 +497,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .alibaba(value): self.alibaba = value
         case let .factory(value): self.factory = value
         case let .minimax(value): self.minimax = value
+        case let .manus(value): self.manus = value
         case let .zai(value): self.zai = value
         case let .copilot(value): self.copilot = value
         case let .kilo(value): self.kilo = value
@@ -510,6 +528,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             alibaba: self.alibaba,
             factory: self.factory,
             minimax: self.minimax,
+            manus: self.manus,
             zai: self.zai,
             copilot: self.copilot,
             kilo: self.kilo,

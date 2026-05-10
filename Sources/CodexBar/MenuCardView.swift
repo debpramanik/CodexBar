@@ -1140,15 +1140,14 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailText = detail
         }
-        if input.provider == .alibaba || input.provider == .mistral,
+        if input.provider == .alibaba || input.provider == .mistral || input.provider == .manus,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
+            if input.provider == .manus { primaryResetText = nil }
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
-           primary.resetsAt == nil
-        {
+        if [.warp, .kilo, .mimo, .deepseek].contains(input.provider), primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window
@@ -1253,6 +1252,12 @@ extension UsageMenuCardView.Model {
             }
         }
         if input.provider == .alibaba,
+           let detail = weekly.resetDescription,
+           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            weeklyDetailText = detail
+        }
+        if input.provider == .manus,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1560,6 +1565,9 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         cost: ProviderCostSnapshot?) -> ProviderCostSection?
     {
+        if provider == .manus {
+            return nil
+        }
         guard let cost else { return nil }
         guard provider != .synthetic else { return nil }
 
