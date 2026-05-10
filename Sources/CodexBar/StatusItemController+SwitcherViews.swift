@@ -863,6 +863,7 @@ final class TokenAccountSwitcherView: NSView {
     private let onSelect: (Int) -> Task<Void, Never>?
     private var selectedIndex: Int
     private var buttons: [NSButton] = []
+    private let preferredSize: NSSize
     private let rowSpacing: CGFloat = 4
     private let rowHeight: CGFloat = 26
     private let selectedBackground = NSColor.controlAccentColor.cgColor
@@ -882,6 +883,7 @@ final class TokenAccountSwitcherView: NSView {
         let useTwoRows = accounts.count > 3
         let rows = useTwoRows ? 2 : 1
         let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
+        self.preferredSize = NSSize(width: width, height: height)
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
         self.wantsLayer = true
         self.buildButtons(useTwoRows: useTwoRows)
@@ -891,6 +893,14 @@ final class TokenAccountSwitcherView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        self.preferredSize
+    }
+
+    override var fittingSize: NSSize {
+        self.preferredSize
     }
 
     private func buildButtons(useTwoRows: Bool) {
@@ -904,7 +914,7 @@ final class TokenAccountSwitcherView: NSView {
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.alignment = .centerX
+        stack.alignment = .width
         stack.spacing = self.rowSpacing
         stack.translatesAutoresizingMaskIntoConstraints = false
 
@@ -928,6 +938,8 @@ final class TokenAccountSwitcherView: NSView {
                 button.setButtonType(.toggle)
                 button.controlSize = .small
                 button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+                button.cell?.lineBreakMode = .byTruncatingTail
+                button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
                 button.wantsLayer = true
                 button.layer?.cornerRadius = 6
                 row.addArrangedSubview(button)
@@ -936,6 +948,7 @@ final class TokenAccountSwitcherView: NSView {
             }
 
             stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 
         self.addSubview(stack)
@@ -987,6 +1000,7 @@ final class CodexAccountSwitcherView: NSView {
     private let onSelect: (String) -> Void
     private var selectedAccountID: String
     private var buttons: [NSButton] = []
+    private let preferredSize: NSSize
     private let rowSpacing: CGFloat = 4
     private let rowHeight: CGFloat = 26
     private let selectedBackground = NSColor.controlAccentColor.cgColor
@@ -1009,6 +1023,7 @@ final class CodexAccountSwitcherView: NSView {
         let useTwoRows = accounts.count > 3
         let rows = useTwoRows ? 2 : 1
         let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
+        self.preferredSize = NSSize(width: width, height: height)
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
         self.wantsLayer = true
         self.buildButtons(useTwoRows: useTwoRows)
@@ -1018,6 +1033,14 @@ final class CodexAccountSwitcherView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        self.preferredSize
+    }
+
+    override var fittingSize: NSSize {
+        self.preferredSize
     }
 
     private func buildButtons(useTwoRows: Bool) {
@@ -1030,7 +1053,7 @@ final class CodexAccountSwitcherView: NSView {
         }()
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.alignment = .centerX
+        stack.alignment = .width
         stack.spacing = self.rowSpacing
         stack.translatesAutoresizingMaskIntoConstraints = false
 
@@ -1055,6 +1078,8 @@ final class CodexAccountSwitcherView: NSView {
                 button.setButtonType(.toggle)
                 button.controlSize = .small
                 button.font = self.buttonFont
+                button.cell?.lineBreakMode = .byTruncatingTail
+                button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
                 button.wantsLayer = true
                 button.layer?.cornerRadius = 6
                 row.addArrangedSubview(button)
@@ -1062,6 +1087,7 @@ final class CodexAccountSwitcherView: NSView {
             }
 
             stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 
         self.addSubview(stack)

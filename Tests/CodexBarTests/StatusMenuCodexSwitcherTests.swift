@@ -395,6 +395,44 @@ struct StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `codex switcher reports fixed menu width for long account labels`() {
+        let accounts = [
+            CodexVisibleAccount(
+                id: "live:provider:account-personal",
+                email: "managed-account-with-a-very-long-name@example.com",
+                workspaceLabel: nil,
+                workspaceAccountID: "account-managed",
+                storedAccountID: nil,
+                selectionSource: .liveSystem,
+                isActive: true,
+                isLive: true,
+                canReauthenticate: true,
+                canRemove: false),
+            CodexVisibleAccount(
+                id: "managed:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                email: "steipete-with-a-very-long-label@gmail.com",
+                workspaceLabel: nil,
+                workspaceAccountID: "account-gmail",
+                storedAccountID: UUID(),
+                selectionSource: .managedAccount(id: UUID()),
+                isActive: false,
+                isLive: false,
+                canReauthenticate: true,
+                canRemove: true),
+        ]
+
+        let view = CodexAccountSwitcherView(
+            accounts: accounts,
+            selectedAccountID: accounts.first?.id,
+            width: 310,
+            onSelect: { _ in })
+
+        #expect(view.frame.width == 310)
+        #expect(view.intrinsicContentSize.width == 310)
+        #expect(view.fittingSize.width == 310)
+    }
+
+    @Test
     func `codex menu switcher selection activates the visible managed account`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
