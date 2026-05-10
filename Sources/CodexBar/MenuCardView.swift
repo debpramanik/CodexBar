@@ -811,6 +811,13 @@ extension UsageMenuCardView.Model {
             return [peakStatus.label]
         }
 
+        if input.provider == .mimo, input.snapshot != nil {
+            return [
+                "Balance updates in near-real time (up to 5 min lag)",
+                "Daily billing data finalizes at 07:00 UTC",
+            ]
+        }
+
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
@@ -1127,7 +1134,7 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek,
+        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
            let detail = primary.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1139,7 +1146,9 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailText = detail
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .deepseek, primary.resetsAt == nil {
+        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek,
+           primary.resetsAt == nil
+        {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window

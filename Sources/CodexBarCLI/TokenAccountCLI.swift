@@ -181,6 +181,11 @@ struct TokenAccountCLIContext {
                 perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings(
                     cookieSource: cookieSource,
                     manualCookieHeader: cookieHeader))
+        case .mimo:
+            return self.makeSnapshot(
+                mimo: ProviderSettingsSnapshot.MiMoProviderSettings(
+                    cookieSource: cookieSource,
+                    manualCookieHeader: cookieHeader))
         case .doubao:
             return nil
         case .abacus:
@@ -222,6 +227,7 @@ struct TokenAccountCLIContext {
         ollama: ProviderSettingsSnapshot.OllamaProviderSettings? = nil,
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
         perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil,
+        mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil,
         abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
         mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
         stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
@@ -243,6 +249,7 @@ struct TokenAccountCLIContext {
             ollama: ollama,
             jetbrains: jetbrains,
             perplexity: perplexity,
+            mimo: mimo,
             abacus: abacus,
             mistral: mistral,
             stepfun: stepfun)

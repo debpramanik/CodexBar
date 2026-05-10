@@ -1079,6 +1079,7 @@ struct SettingsStoreTests {
             .openrouter,
             .windsurf,
             .perplexity,
+            .mimo,
             .doubao,
             .abacus,
             .mistral,

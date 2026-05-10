@@ -22,6 +22,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
+        mimo: MiMoProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
         mistral: MistralProviderSettings? = nil,
         stepfun: StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
@@ -47,6 +48,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             jetbrains: jetbrains,
             windsurf: windsurf,
             perplexity: perplexity,
+            mimo: mimo,
             abacus: abacus,
             mistral: mistral,
             stepfun: stepfun)
@@ -272,6 +274,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct MiMoProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct AbacusProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -332,6 +344,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let jetbrains: JetBrainsProviderSettings?
     public let windsurf: WindsurfProviderSettings?
     public let perplexity: PerplexityProviderSettings?
+    public let mimo: MiMoProviderSettings?
     public let abacus: AbacusProviderSettings?
     public let mistral: MistralProviderSettings?
     public let stepfun: StepFunProviderSettings?
@@ -362,6 +375,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         jetbrains: JetBrainsProviderSettings? = nil,
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
+        mimo: MiMoProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
         mistral: MistralProviderSettings? = nil,
         stepfun: StepFunProviderSettings? = nil)
@@ -387,6 +401,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.jetbrains = jetbrains
         self.windsurf = windsurf
         self.perplexity = perplexity
+        self.mimo = mimo
         self.abacus = abacus
         self.mistral = mistral
         self.stepfun = stepfun
@@ -413,6 +428,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
     case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
+    case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
     case stepfun(ProviderSettingsSnapshot.StepFunProviderSettings)
@@ -440,6 +456,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
     public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
+    public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
     public var stepfun: ProviderSettingsSnapshot.StepFunProviderSettings?
@@ -471,6 +488,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .jetbrains(value): self.jetbrains = value
         case let .windsurf(value): self.windsurf = value
         case let .perplexity(value): self.perplexity = value
+        case let .mimo(value): self.mimo = value
         case let .abacus(value): self.abacus = value
         case let .mistral(value): self.mistral = value
         case let .stepfun(value): self.stepfun = value
@@ -500,6 +518,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             jetbrains: self.jetbrains,
             windsurf: self.windsurf,
             perplexity: self.perplexity,
+            mimo: self.mimo,
             abacus: self.abacus,
             mistral: self.mistral,
             stepfun: self.stepfun)
