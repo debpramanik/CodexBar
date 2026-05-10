@@ -3,8 +3,8 @@
 ## 0.25 — Unreleased
 
 ### Site
-- Move the primary website and app About link to `codex.bar`.
-- Refresh `codex.bar` with a structured aurora background, animated headline gradient, glassy provider tiles, and a matching social card. Punch up the README with badges and the new social hero.
+- Keep the primary website and app About link on `codexbar.app`, with `codex.bar` as an alias.
+- Refresh `codexbar.app` with a structured aurora background, animated headline gradient, glassy provider tiles, and a matching social card. Punch up the README with badges and the new social hero.
 
 ### Providers & Usage
 - Localization: add Simplified Chinese app strings and an in-app language selector (#819). Thanks @markhome1!
