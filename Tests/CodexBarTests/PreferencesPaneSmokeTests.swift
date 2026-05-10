@@ -43,6 +43,14 @@ struct PreferencesPaneSmokeTests {
         _ = AboutPane(updater: DisabledUpdaterController()).body
     }
 
+    @Test
+    func `overview provider limit text formats numeric limit as object argument`() {
+        let text = DisplayPane.overviewProviderLimitText(limit: 3)
+
+        #expect(text.contains("3"))
+        #expect(!text.contains("%@"))
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

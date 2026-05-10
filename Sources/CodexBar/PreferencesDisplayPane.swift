@@ -5,6 +5,10 @@ import SwiftUI
 struct DisplayPane: View {
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
 
+    static func overviewProviderLimitText(limit: Int = Self.maxOverviewProviders) -> String {
+        L("overview_choose_providers", String(limit))
+    }
+
     @State private var isOverviewProviderPopoverPresented = false
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
@@ -158,7 +162,7 @@ struct DisplayPane: View {
 
     private var overviewProviderPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(String(format: L("overview_choose_providers"), Self.maxOverviewProviders))
+            Text(Self.overviewProviderLimitText())
                 .font(.headline)
             Text(L("overview_rows_follow_order"))
                 .font(.footnote)
