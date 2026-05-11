@@ -1,10 +1,12 @@
 # Changelog
 
-## 0.26 — Unreleased
+## 0.25.1 — 2026-05-11
 
 ### Fixed
 - Settings: avoid packaged-app crashes from SwiftPM localization bundle lookup when opening Settings or About (#896, fixes #891). Thanks @lederniermagicien!
 - CLI: include a VERSION file in standalone release archives so `--version` reports the release tag outside the app bundle (#898). Thanks @ThiagoCAltoe!
+- Pi: rebuild stale session cost caches after cache-version migrations so refreshed cost history reflects current scanner data.
+- Keychain cache: reduce repeated development prompt churn by trusting the bundled helper when writing CodexBar-owned cache items (#888).
 
 ## 0.25 — 2026-05-10
 
