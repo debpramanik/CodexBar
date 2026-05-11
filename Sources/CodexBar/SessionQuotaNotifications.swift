@@ -9,7 +9,7 @@ enum SessionQuotaTransition: Equatable {
     case restored
 }
 
-struct QuotaWarningEvent: Equatable, Sendable {
+struct QuotaWarningEvent: Equatable {
     let window: QuotaWarningWindow
     let threshold: Int
     let currentRemaining: Double

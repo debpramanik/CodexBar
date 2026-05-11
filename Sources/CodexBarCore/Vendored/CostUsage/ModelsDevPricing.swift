@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-struct ModelsDevPricingInfo: Codable, Equatable, Sendable {
+struct ModelsDevPricingInfo: Codable, Equatable {
     var providerID: String
     var providerName: String?
     var modelID: String
@@ -20,12 +20,12 @@ struct ModelsDevPricingInfo: Codable, Equatable, Sendable {
     var cacheCreationInputCostPerTokenAboveThreshold: Double?
 }
 
-struct ModelsDevPricingLookup: Equatable, Sendable {
+struct ModelsDevPricingLookup: Equatable {
     var pricing: ModelsDevPricingInfo
     var normalizedModelID: String
 }
 
-struct ModelsDevCatalog: Codable, Equatable, Sendable {
+struct ModelsDevCatalog: Codable, Equatable {
     var providers: [String: ModelsDevProvider]
 
     init(providers: [String: ModelsDevProvider]) {
@@ -97,7 +97,7 @@ private struct ModelsDevAnyCodingKey: CodingKey {
     }
 }
 
-struct ModelsDevProvider: Codable, Equatable, Sendable {
+struct ModelsDevProvider: Codable, Equatable {
     var id: String?
     var name: String?
     var models: [String: ModelsDevModel]
@@ -167,7 +167,7 @@ struct ModelsDevProvider: Codable, Equatable, Sendable {
     }
 }
 
-struct ModelsDevModel: Codable, Equatable, Sendable {
+struct ModelsDevModel: Codable, Equatable {
     var id: String
     var name: String?
     var cost: ModelsDevCost?
@@ -205,7 +205,7 @@ struct ModelsDevModel: Codable, Equatable, Sendable {
     }
 }
 
-struct ModelsDevCost: Codable, Equatable, Sendable {
+struct ModelsDevCost: Codable, Equatable {
     var input: Double?
     var output: Double?
     var cacheRead: Double?
@@ -221,7 +221,7 @@ struct ModelsDevCost: Codable, Equatable, Sendable {
     }
 }
 
-struct ModelsDevContextOver200KCost: Codable, Equatable, Sendable {
+struct ModelsDevContextOver200KCost: Codable, Equatable {
     var input: Double?
     var output: Double?
     var cacheRead: Double?
@@ -235,7 +235,7 @@ struct ModelsDevContextOver200KCost: Codable, Equatable, Sendable {
     }
 }
 
-struct ModelsDevLimit: Codable, Equatable, Sendable {
+struct ModelsDevLimit: Codable, Equatable {
     var context: Int?
 }
 
@@ -306,20 +306,20 @@ enum ModelsDevModelIDNormalizer {
     }
 }
 
-struct ModelsDevCacheArtifact: Codable, Equatable, Sendable {
+struct ModelsDevCacheArtifact: Codable, Equatable {
     var version: Int
     var fetchedAt: Date
     var catalog: ModelsDevCatalog
 }
 
-struct ModelsDevCacheLoadResult: Equatable, Sendable {
+struct ModelsDevCacheLoadResult: Equatable {
     var artifact: ModelsDevCacheArtifact?
     var isStale: Bool
     var error: ModelsDevCache.Error?
 }
 
 enum ModelsDevCache {
-    enum Error: Swift.Error, Equatable, Sendable {
+    enum Error: Swift.Error, Equatable {
         case unreadable
         case invalidVersion
         case invalidJSON
@@ -402,8 +402,8 @@ struct URLSessionModelsDevTransport: ModelsDevHTTPTransport {
     }
 }
 
-struct ModelsDevClient: Sendable {
-    enum Error: Swift.Error, Equatable, Sendable {
+struct ModelsDevClient {
+    enum Error: Swift.Error, Equatable {
         case invalidResponse
         case httpStatus(Int)
         case invalidJSON

@@ -51,14 +51,14 @@ public enum CommandCodeUsageFetcher {
 
     // MARK: - Endpoints
 
-    struct CreditsPayload: Sendable {
+    struct CreditsPayload {
         let monthlyCredits: Double
         let purchasedCredits: Double
         let premiumMonthlyCredits: Double
         let opensourceMonthlyCredits: Double
     }
 
-    struct SubscriptionPayload: Sendable {
+    struct SubscriptionPayload {
         let planID: String
         let status: String
         let currentPeriodEnd: Date?
