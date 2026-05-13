@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 enum MiMoCookieHeader {
     static let requiredCookieNames: Set<String> = [

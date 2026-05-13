@@ -29,6 +29,33 @@ delete_keychain_service_items() {
   done
 }
 
+# Ensure Swift >= 5.5 (required for --arch flag in swift build)
+ensure_swift_version() {
+  local swift_output
+  local swift_ver
+  swift_output=$(swift --version 2>&1 || true)
+  if [[ "$swift_output" =~ (Apple[[:space:]]+)?Swift[[:space:]]+version[[:space:]]+([0-9]+)\.([0-9]+)(\.[0-9]+)? ]]; then
+    swift_ver="${BASH_REMATCH[2]}.${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+  else
+    fail "Swift >= 5.5 required (found ${swift_output:-none}). Install Xcode or update swiftly."
+  fi
+  local major minor
+  major=$(echo "$swift_ver" | cut -d. -f1)
+  minor=$(echo "$swift_ver" | cut -d. -f2)
+  if [[ "${major:-0}" -ge 6 ]] || { [[ "${major:-0}" -eq 5 ]] && [[ "${minor:-0}" -ge 5 ]]; }; then
+    return 0
+  fi
+  # Try Xcode toolchain
+  local xcrun_swift
+  xcrun_swift=$(xcrun --find swift 2>/dev/null || true)
+  if [[ -n "$xcrun_swift" && -x "$xcrun_swift" ]]; then
+    log "WARN: PATH swift is v${swift_ver}; switching to Xcode toolchain at $(dirname "$xcrun_swift")"
+    export PATH="$(dirname "$xcrun_swift"):$PATH"
+    return 0
+  fi
+  fail "Swift >= 5.5 required (found ${swift_ver:-none}). Install Xcode or update swiftly."
+}
+
 has_signing_identity() {
   local identity="${1:-}"
   if [[ -z "${identity}" ]]; then
@@ -37,13 +64,47 @@ has_signing_identity() {
   security find-identity -p codesigning -v 2>/dev/null | grep -F "${identity}" >/dev/null 2>&1
 }
 
+detect_codesigning_identity() {
+  local preferred_prefixes=(
+    "Developer ID Application:"
+    "Apple Development:"
+    "Apple Distribution:"
+  )
+  local prefix
+  local identities
+  identities="$(security find-identity -p codesigning -v 2>/dev/null || true)"
+  for prefix in "${preferred_prefixes[@]}"; do
+    awk -v prefix="${prefix}" '
+      index($0, "\"" prefix) {
+        sub(/^[^\"]*\"/, "")
+        sub(/\".*$/, "")
+        print
+        exit
+      }
+    ' <<<"${identities}"
+  done | sed -n '1p'
+}
+
+export_team_id_from_identity() {
+  local identity="${1:-}"
+  if [[ -n "${APP_TEAM_ID:-}" || -z "${identity}" ]]; then
+    return
+  fi
+  if [[ "${identity}" =~ \(([A-Z0-9]{10})\)$ ]]; then
+    APP_TEAM_ID="${BASH_REMATCH[1]}"
+    export APP_TEAM_ID
+  fi
+}
+
 resolve_signing_mode() {
   if [[ -n "${SIGNING_MODE}" ]]; then
+    export_team_id_from_identity "${APP_IDENTITY:-}"
     return
   fi
 
   if [[ -n "${APP_IDENTITY:-}" ]]; then
     if has_signing_identity "${APP_IDENTITY}"; then
+      export_team_id_from_identity "${APP_IDENTITY}"
       SIGNING_MODE="identity"
       return
     fi
@@ -60,10 +121,20 @@ resolve_signing_mode() {
     if has_signing_identity "${candidate}"; then
       APP_IDENTITY="${candidate}"
       export APP_IDENTITY
+      export_team_id_from_identity "${APP_IDENTITY}"
       SIGNING_MODE="identity"
       return
     fi
   done
+
+  candidate="$(detect_codesigning_identity)"
+  if [[ -n "${candidate}" ]]; then
+    APP_IDENTITY="${candidate}"
+    export APP_IDENTITY
+    export_team_id_from_identity "${APP_IDENTITY}"
+    SIGNING_MODE="identity"
+    return
+  fi
 
   SIGNING_MODE="adhoc"
 }
@@ -173,6 +244,7 @@ for arg in "$@"; do
   esac
 done
 
+ensure_swift_version
 resolve_signing_mode
 if [[ "${CLEAR_ADHOC_KEYCHAIN}" == "1" && "${SIGNING_MODE}" != "adhoc" ]]; then
   fail "--clear-adhoc-keychain is only supported when using adhoc signing."

@@ -27,7 +27,8 @@ public enum AlibabaCodingPlanAPIRegion: String, CaseIterable, Sendable {
     public var dashboardURL: URL {
         switch self {
         case .international:
-            URL(string: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/detail")!
+            URL(
+                string: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan")!
         case .chinaMainland:
             URL(string: "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan")!
         }
@@ -47,7 +48,7 @@ public enum AlibabaCodingPlanAPIRegion: String, CaseIterable, Sendable {
         case .international:
             "MODELSTUDIO_ALIBABACLOUD"
         case .chinaMainland:
-            "BAILIAN_CONSOLE"
+            "BAILIAN_ALIYUN"
         }
     }
 
@@ -79,7 +80,7 @@ public enum AlibabaCodingPlanAPIRegion: String, CaseIterable, Sendable {
         case .international:
             "https://bailian-singapore-cs.alibabacloud.com"
         case .chinaMainland:
-            "https://bailian-beijing-cs.aliyuncs.com"
+            "https://bailian-cs.console.aliyun.com"
         }
     }
 

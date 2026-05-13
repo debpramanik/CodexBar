@@ -64,8 +64,10 @@ public enum MiMoUsageFetcher {
         }
 
         let balanceURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("balance")
-        let tokenDetailURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("tokenPlan/detail")
-        let tokenUsageURL = MiMoSettingsReader.apiURL(environment: environment).appendingPathComponent("tokenPlan/usage")
+        let tokenDetailURL = MiMoSettingsReader.apiURL(environment: environment)
+            .appendingPathComponent("tokenPlan/detail")
+        let tokenUsageURL = MiMoSettingsReader.apiURL(environment: environment)
+            .appendingPathComponent("tokenPlan/usage")
 
         async let balanceData = self.fetchAuthenticated(url: balanceURL, cookie: normalizedCookie)
         let tokenDetailData: Data? = try? await self.fetchAuthenticated(url: tokenDetailURL, cookie: normalizedCookie)
@@ -191,11 +193,10 @@ public enum MiMoUsageFetcher {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
 
-        let periodEnd: Date?
-        if let dateStr = payload.currentPeriodEnd {
-            periodEnd = formatter.date(from: dateStr)
+        let periodEnd: Date? = if let dateStr = payload.currentPeriodEnd {
+            formatter.date(from: dateStr)
         } else {
-            periodEnd = nil
+            nil
         }
 
         return (planCode: payload.planCode, periodEnd: periodEnd, expired: payload.expired)

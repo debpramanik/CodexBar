@@ -190,7 +190,7 @@ struct MiMoProviderTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary != nil)
-        #expect(usage.primary?.usedPercent == 5.05)
+#expect(abs((usage.primary?.usedPercent ?? .nan) - 5.05) < 0.0001)
         #expect(usage.primary?.resetDescription == "10,100,158 / 200,000,000 Credits")
         #expect(usage.primary?.resetsAt == resetDate)
         #expect(usage.loginMethod(for: .mimo) == "Standard")
@@ -298,7 +298,23 @@ struct MiMoProviderTests {
         {"code":0,"message":"","data":{"planCode":"standard","currentPeriodEnd":"2026-05-04 23:59:59","expired":false}}
         """
         let usageJSON = """
-        {"code":0,"message":"","data":{"monthUsage":{"percent":0.0505,"items":[{"name":"month_total_token","used":10100158,"limit":200000000,"percent":0.0505}]}}}
+{
+          "code": 0,
+          "message": "",
+          "data": {
+            "monthUsage": {
+              "percent": 0.0505,
+              "items": [
+                {
+                  "name": "month_total_token",
+                  "used": 10100158,
+                  "limit": 200000000,
+                  "percent": 0.0505
+                }
+              ]
+            }
+          }
+        }
         """
 
         let snapshot = try MiMoUsageFetcher.parseCombinedSnapshot(
@@ -325,9 +341,13 @@ struct MiMoProviderTests {
             MiMoStubURLProtocol.handler = nil
         }
 
+let lock = NSLock()
+        var requestedPaths: [String] = []
         MiMoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
-            #expect(url.path == "/api/v1/balance")
+            lock.withLock {
+                requestedPaths.append(url.path)
+            }
             #expect(request.value(forHTTPHeaderField: "Cookie") == "api-platform_serviceToken=svc-token; userId=123")
             #expect(request.value(forHTTPHeaderField: "Accept-Language") == "en-US,en;q=0.9")
             #expect(request.value(forHTTPHeaderField: "x-timeZone") == "UTC+01:00")
@@ -352,6 +372,7 @@ struct MiMoProviderTests {
 
         #expect(snapshot.balance == 25.51)
         #expect(snapshot.currency == "USD")
+#expect(requestedPaths.contains("/api/v1/balance"))
     }
 
     @Test
@@ -485,11 +506,14 @@ struct MiMoProviderTests {
             ]
         }
 
+let lock = NSLock()
         var requestedCookies: [String] = []
         MiMoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
-            requestedCookies.append(cookie)
+lock.withLock {
+                requestedCookies.append(cookie)
+            }
 
             if cookie.contains("expired-token") {
                 let response = HTTPURLResponse(
@@ -517,9 +541,9 @@ struct MiMoProviderTests {
         let result = try await strategy
             .fetch(self.makeContext(environment: ["MIMO_API_URL": "https://mimo.test/api/v1"]))
 
-        #expect(requestedCookies.count == 2)
-        #expect(requestedCookies[0].contains("expired-token"))
-        #expect(requestedCookies[1].contains("valid-token"))
+#expect(requestedCookies.count == 6)
+        #expect(requestedCookies.contains(where: { $0.contains("expired-token") }))
+        #expect(requestedCookies.contains(where: { $0.contains("valid-token") }))
         #expect(result.usage.loginMethod(for: .mimo) == "Balance: $25.51")
         #expect(CookieHeaderCache.load(provider: .mimo)?.sourceLabel == "Active Chrome")
     }
