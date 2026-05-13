@@ -84,7 +84,6 @@ public enum ProviderDescriptorRegistry {
         .mimo: MiMoProviderDescriptor.descriptor,
         .doubao: DoubaoProviderDescriptor.descriptor,
         .abacus: AbacusProviderDescriptor.descriptor,
-        .mimo: MiMoProviderDescriptor.descriptor,
         .mistral: MistralProviderDescriptor.descriptor,
         .deepseek: DeepSeekProviderDescriptor.descriptor,
         .codebuff: CodebuffProviderDescriptor.descriptor,

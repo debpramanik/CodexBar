@@ -298,7 +298,7 @@ struct MiMoProviderTests {
         {"code":0,"message":"","data":{"planCode":"standard","currentPeriodEnd":"2026-05-04 23:59:59","expired":false}}
         """
         let usageJSON = """
-{
+        {
           "code": 0,
           "message": "",
           "data": {

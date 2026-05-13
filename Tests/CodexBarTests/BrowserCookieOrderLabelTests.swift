@@ -11,9 +11,12 @@ struct BrowserCookieOrderStatusStringTests {
     }
 
     @Test
-    func `automatic cookie import includes newly supported chromium browsers`() {
-        #expect(Browser.defaultImportOrder.contains(.comet))
-        #expect(Browser.defaultImportOrder.contains(.yandex))
+    func `automatic cookie import includes chromium browsers`() {
+        #expect(Browser.defaultImportOrder.contains(.chrome))
+        #expect(Browser.defaultImportOrder.contains(.edge))
+        #expect(Browser.defaultImportOrder.contains(.brave))
+        #expect(Browser.defaultImportOrder.contains(.arc))
+        #expect(Browser.defaultImportOrder.contains(.vivaldi))
     }
 
     @Test
