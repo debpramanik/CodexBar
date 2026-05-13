@@ -83,6 +83,10 @@ public enum BrowserCookieAccessGate {
 
     /// BrowserOS uses MCP instead of Keychain - always allow if server is reachable
     public static func shouldAttemptBrowserOS() -> Bool {
+        guard UserDefaults.standard.bool(forKey: "browserOSEnabled") else {
+            log.debug("BrowserOS MCP disabled in settings")
+            return false
+        }
         guard !KeychainAccessGate.isDisabled else { return false }
         let available = BrowserOSCookieProvider.isAvailable()
         if available {

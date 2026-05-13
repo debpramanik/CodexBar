@@ -309,9 +309,6 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
-    public struct MiMoProviderSettings: Sendable {
-    }
-
     public struct MistralProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -365,7 +362,6 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let perplexity: PerplexityProviderSettings?
     public let mimo: MiMoProviderSettings?
     public let abacus: AbacusProviderSettings?
-    public let mimo: MiMoProviderSettings?
     public let mistral: MistralProviderSettings?
     public let stepfun: StepFunProviderSettings?
 
@@ -425,7 +421,6 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.perplexity = perplexity
         self.mimo = mimo
         self.abacus = abacus
-        self.mimo = mimo
         self.mistral = mistral
         self.stepfun = stepfun
     }
@@ -454,7 +449,6 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
-    case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
     case stepfun(ProviderSettingsSnapshot.StepFunProviderSettings)
 }
@@ -484,7 +478,6 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
-    public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
     public var stepfun: ProviderSettingsSnapshot.StepFunProviderSettings?
 
@@ -518,7 +511,6 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .perplexity(value): self.perplexity = value
         case let .mimo(value): self.mimo = value
         case let .abacus(value): self.abacus = value
-        case let .mimo(value): self.mimo = value
         case let .mistral(value): self.mistral = value
         case let .stepfun(value): self.stepfun = value
         }

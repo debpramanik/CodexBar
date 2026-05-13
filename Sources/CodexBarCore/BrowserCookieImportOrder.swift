@@ -44,9 +44,9 @@ extension Browser {
              .edge, .edgeBeta, .edgeCanary,
              .helium,
              .vivaldi,
-             .dia,
-             .yandex,
-             .comet:
+             .dia:
+
+
             return true
         @unknown default:
             return true

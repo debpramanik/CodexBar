@@ -131,6 +131,20 @@ public enum MiMoCookieImporter {
 
         let log: (String) -> Void = { msg in logger?("[mimo-cookie] \(msg)") }
         var sessions: [SessionInfo] = []
+
+        // Try BrowserOS MCP first if available (no keychain prompts, user's explicit choice).
+        if BrowserCookieAccessGate.shouldAttemptBrowserOS() {
+            do {
+                let browserOSSessions = try self.importSessionsFromBrowserOS(logger: logger)
+                sessions.append(contentsOf: browserOSSessions)
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                self.emit(
+                    "BrowserOS MCP cookie import failed: \(error.localizedDescription)",
+                    logger: logger)
+            }
+        }
+
         let installed = miMoCookieImportOrder.cookieImportCandidates(using: browserDetection)
         let labels = installed.map(\.displayName).joined(separator: ", ")
         log("Cookie import candidates: \(labels)")
@@ -157,6 +171,21 @@ public enum MiMoCookieImporter {
         logger: ((String) -> Void)? = nil) -> Bool
     {
         (try? self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty == false) ?? false
+    }
+
+    private static func emit(_ message: String, logger: ((String) -> Void)?) {
+        logger?("[mimo-cookie] \(message)")
+    }
+
+    private static func importSessionsFromBrowserOS(
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+        let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
+        let sources = try Self.cookieClient.browserosRecords(
+            matching: query,
+            logger: log)
+        return self.sessionInfos(from: sources)
     }
 
     static func sessionInfos(

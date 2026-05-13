@@ -1,5 +1,5 @@
 {
-  "originHash" : "164e2ec8c707e1385c5b54ba6f2733c2bc603b5fb762d95092078edfb70537ca",
+  "originHash" : "66f8265de73997ba2ddb589e3dccd63a7ff710e9023c9f3f4aac02757834e674",
   "pins" : [
     {
       "identity" : "commander",
@@ -26,15 +26,6 @@
       "state" : {
         "revision" : "066e75a8b3e99962685d6a90cdd5293ebffd9261",
         "version" : "2.9.1"
-      }
-    },
-    {
-      "identity" : "sweetcookiekit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/steipete/SweetCookieKit",
-      "state" : {
-        "revision" : "21bedea672a3e63ccad24d744051e76cdf0462dd",
-        "version" : "0.4.1"
       }
     },
     {
